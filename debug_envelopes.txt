@@ -1,0 +1,176 @@
+2026-01-01 14:49:53.379 | INFO     | app.infrastructure.llm.factory:create_llm_adapter:38 - Creating LLM adapter for provider: LLMProvider.LLAMA_3_2
+2026-01-01 14:49:53.379 | INFO     | app.infrastructure.llm.mistral_adapter:_load_model:41 - Loading model from ./models/llama-3.2-3b-instruct-quantized.gguf
+llama_context: n_ctx_per_seq (4096) < n_ctx_train (131072) -- the full capacity of the model will not be utilized
+ggml_metal_init: skipping kernel_get_rows_bf16                     (not supported)
+ggml_metal_init: skipping kernel_set_rows_bf16                     (not supported)
+ggml_metal_init: skipping kernel_mul_mv_bf16_f32                   (not supported)
+ggml_metal_init: skipping kernel_mul_mv_bf16_f32_c4                (not supported)
+ggml_metal_init: skipping kernel_mul_mv_bf16_f32_1row              (not supported)
+ggml_metal_init: skipping kernel_mul_mv_bf16_f32_l4                (not supported)
+ggml_metal_init: skipping kernel_mul_mv_bf16_bf16                  (not supported)
+ggml_metal_init: skipping kernel_mul_mv_id_bf16_f32                (not supported)
+ggml_metal_init: skipping kernel_mul_mm_bf16_f32                   (not supported)
+ggml_metal_init: skipping kernel_mul_mm_id_bf16_f16                (not supported)
+ggml_metal_init: skipping kernel_flash_attn_ext_bf16_h64           (not supported)
+ggml_metal_init: skipping kernel_flash_attn_ext_bf16_h80           (not supported)
+ggml_metal_init: skipping kernel_flash_attn_ext_bf16_h96           (not supported)
+ggml_metal_init: skipping kernel_flash_attn_ext_bf16_h112          (not supported)
+ggml_metal_init: skipping kernel_flash_attn_ext_bf16_h128          (not supported)
+ggml_metal_init: skipping kernel_flash_attn_ext_bf16_h192          (not supported)
+ggml_metal_init: skipping kernel_flash_attn_ext_bf16_hk192_hv128   (not supported)
+ggml_metal_init: skipping kernel_flash_attn_ext_bf16_h256          (not supported)
+ggml_metal_init: skipping kernel_flash_attn_ext_bf16_hk576_hv512   (not supported)
+ggml_metal_init: skipping kernel_flash_attn_ext_vec_bf16_h64       (not supported)
+ggml_metal_init: skipping kernel_flash_attn_ext_vec_bf16_h96       (not supported)
+ggml_metal_init: skipping kernel_flash_attn_ext_vec_bf16_h128      (not supported)
+ggml_metal_init: skipping kernel_flash_attn_ext_vec_bf16_h192      (not supported)
+ggml_metal_init: skipping kernel_flash_attn_ext_vec_bf16_hk192_hv128 (not supported)
+ggml_metal_init: skipping kernel_flash_attn_ext_vec_bf16_h256      (not supported)
+ggml_metal_init: skipping kernel_flash_attn_ext_vec_bf16_hk576_hv512 (not supported)
+ggml_metal_init: skipping kernel_cpy_f32_bf16                      (not supported)
+ggml_metal_init: skipping kernel_cpy_bf16_f32                      (not supported)
+ggml_metal_init: skipping kernel_cpy_bf16_bf16                     (not supported)
+2026-01-01 14:49:56.644 | INFO     | app.infrastructure.llm.mistral_adapter:_load_model:57 - GGUF model loaded successfully
+2026-01-01 14:49:56.645 | INFO     | app.infrastructure.embeddings.embedding_service:_load_model:52 - Loading embedding model: sentence-transformers/all-MiniLM-L6-v2
+2026-01-01 14:50:04.048 | INFO     | app.infrastructure.embeddings.embedding_service:_load_model:54 - Embedding model loaded successfully
+2026-01-01 14:50:04.211 | INFO     | app.infrastructure.vector_store.faiss_store:_initialize_index:48 - Initialized FAISS HNSW index with dimension 384
+2026-01-01 14:50:04.234 | INFO     | app.infrastructure.vector_store.faiss_store:load:178 - Loaded FAISS index from ./data/faiss_index.index. Total: 23883
+2026-01-01 14:50:04.406 | INFO     | app.infrastructure.cache.cache_service:__init__:43 - Connected to Redis cache
+2026-01-01 14:50:04.406 | INFO     | app.infrastructure.cache.cache_service:__init__:48 - Cache service initialized at ./data/cache
+2026-01-01 14:50:09.039 | INFO     | app.infrastructure.rankers.cross_encoder:__init__:34 - Loaded CrossEncoder model: cross-encoder/ms-marco-MiniLM-L-6-v2
+2026-01-01 14:50:09.138 | INFO     | app.infrastructure.retrievers.sparse_bm25:load:194 - Loaded Sparse BM25 index from ./data/faiss_index.bm25.pkl
+2026-01-01 14:50:09.140 | INFO     | app.application.services.rag_service:_expand_query:112 - Expanding query: 'Security-Tint Envelopes'
+2026-01-01 14:50:11.695 | DEBUG    | app.infrastructure.llm.mistral_adapter:generate:139 - Llama output keys: dict_keys(['id', 'object', 'created', 'model', 'choices', 'usage'])
+2026-01-01 14:50:11.705 | INFO     | app.application.services.rag_service:_expand_query:151 - Expanded query: 'Security Envelopes Policy Document Template'
+2026-01-01 14:50:11.716 | INFO     | app.application.services.rag_service:_expand_query:112 - Expanding query: 'Security-Tint Envelopes'
+2026-01-01 14:50:12.034 | DEBUG    | app.infrastructure.llm.mistral_adapter:generate:139 - Llama output keys: dict_keys(['id', 'object', 'created', 'model', 'choices', 'usage'])
+2026-01-01 14:50:12.035 | INFO     | app.application.services.rag_service:_expand_query:151 - Expanded query: 'Security Envelopes Policy Document Template'
+
+============================================================
+Testing Query: Security-Tint Envelopes
+============================================================
+Expanded: Security Envelopes Policy Document Template
+2026-01-01 14:50:13,626 INFO sqlalchemy.engine.Engine select sys_context( 'userenv', 'current_schema' ) from dual
+2026-01-01 14:50:13,627 INFO sqlalchemy.engine.Engine [raw sql] {}
+2026-01-01 14:50:13,792 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-01-01 14:50:13,807 INFO sqlalchemy.engine.Engine SELECT users.id AS users_id, users.username AS users_username, users.email AS users_email, users.hashed_password AS users_hashed_password, users.full_name AS users_full_name, users.department_id AS users_department_id, users.is_active AS users_is_active, users.created_at AS users_created_at, users.updated_at AS users_updated_at, users.clearance_level AS users_clearance_level 
+FROM users 
+WHERE users.id = :id_1
+ FETCH FIRST 1 ROWS ONLY
+2026-01-01 14:50:13,807 INFO sqlalchemy.engine.Engine [generated in 0.00130s] {'id_1': 1}
+2026-01-01 14:50:13,822 INFO sqlalchemy.engine.Engine SELECT user_role_map.id AS user_role_map_id, user_role_map.user_id AS user_role_map_user_id, user_role_map.role_id AS user_role_map_role_id, user_role_map.granted_at AS user_role_map_granted_at, user_role_map.granted_by AS user_role_map_granted_by 
+FROM user_role_map 
+WHERE :param_1 = user_role_map.user_id
+2026-01-01 14:50:13,822 INFO sqlalchemy.engine.Engine [generated in 0.00017s] {'param_1': 1}
+2026-01-01 14:50:13,832 INFO sqlalchemy.engine.Engine SELECT roles.id AS roles_id, roles.name AS roles_name, roles.description AS roles_description, roles.created_at AS roles_created_at 
+FROM roles 
+WHERE roles.id = :pk_1
+2026-01-01 14:50:13,832 INFO sqlalchemy.engine.Engine [generated in 0.00013s] {'pk_1': 1}
+2026-01-01 14:50:13.849 | DEBUG    | app.application.services.rag_service:_retrieve_context:181 - Generating embedding for query: Security Envelopes Policy Document Template...
+2026-01-01 14:50:15.110 | DEBUG    | app.infrastructure.vector_store.faiss_store:search:86 - Starting FAISS search for top_k=200
+2026-01-01 14:50:15.156 | DEBUG    | app.infrastructure.vector_store.faiss_store:search:109 - FAISS search completed. Found 200 results.
+2026-01-01 14:50:15,188 INFO sqlalchemy.engine.Engine SELECT document_chunks.id AS document_chunks_id, document_chunks.document_id AS document_chunks_document_id, document_chunks.chunk_index AS document_chunks_chunk_index, document_chunks.content AS document_chunks_content, document_chunks.content_hash AS document_chunks_content_hash, document_chunks.page_number AS document_chunks_page_number, document_chunks.start_char AS document_chunks_start_char, document_chunks.end_char AS document_chunks_end_char, document_chunks.vector_id AS document_chunks_vector_id, document_chunks.created_at AS document_chunks_created_at 
+FROM document_chunks 
+WHERE document_chunks.id IN (:id_1_1, :id_1_2, :id_1_3, :id_1_4, :id_1_5, :id_1_6, :id_1_7, :id_1_8, :id_1_9, :id_1_10, :id_1_11, :id_1_12, :id_1_13, :id_1_14, :id_1_15, :id_1_16, :id_1_17, :id_1_18, :id_1_19, :id_1_20, :id_1_21, :id_1_22, :id_1_23, :id_1_24, :id_1_25, :id_1_26, :id_1_27, :id_1_28, :id_1_29, :id_1_30, :id_1_31, :id_1_32, :id_1_33, :id_1_34, :id_1_35, :id_1_36, :id_1_37, :id_1_38, :id_1_39, :id_1_40, :id_1_41, :id_1_42, :id_1_43, :id_1_44, :id_1_45, :id_1_46, :id_1_47, :id_1_48, :id_1_49, :id_1_50)
+2026-01-01 14:50:15,188 INFO sqlalchemy.engine.Engine [generated in 0.00071s] {'id_1_1': 3756, 'id_1_2': 2441, 'id_1_3': 1661, 'id_1_4': 3738, 'id_1_5': 2442, 'id_1_6': 5959, 'id_1_7': 2450, 'id_1_8': 549, 'id_1_9': 4044, 'id_1_10': 1144, 'id_1_11': 12090, 'id_1_12': 3221, 'id_1_13': 16981, 'id_1_14': 5525, 'id_1_15': 10390, 'id_1_16': 1514, 'id_1_17': 11825, 'id_1_18': 3591, 'id_1_19': 9079, 'id_1_20': 5845, 'id_1_21': 3855, 'id_1_22': 1592, 'id_1_23': 435, 'id_1_24': 6282, 'id_1_25': 1513, 'id_1_26': 3914, 'id_1_27': 3590, 'id_1_28': 13932, 'id_1_29': 5844, 'id_1_30': 16624, 'id_1_31': 434, 'id_1_32': 5741, 'id_1_33': 1679, 'id_1_34': 4328, 'id_1_35': 9732, 'id_1_36': 5977, 'id_1_37': 11571, 'id_1_38': 567, 'id_1_39': 15886, 'id_1_40': 1659, 'id_1_41': 9588, 'id_1_42': 3736, 'id_1_43': 11730, 'id_1_44': 5957, 'id_1_45': 11212, 'id_1_46': 547, 'id_1_47': 7190, 'id_1_48': 6014, 'id_1_49': 4479, 'id_1_50': 1716}
+2026-01-01 14:50:15.689 | DEBUG    | app.application.services.rag_service:_retrieve_context:261 - Boost tokens (fallback/strict): ['security-tint', 'envelopes']
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 5741 due to match with token 'envelopes'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 10390 due to match with token 'envelopes'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 16624 due to match with token 'security-tint'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 11212 due to match with token 'security-tint'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 11571 due to match with token 'security-tint'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 7190 due to match with token 'security-tint'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 4479 due to match with token 'security-tint'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 3855 due to match with token 'envelopes'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 4044 due to match with token 'envelopes'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 4328 due to match with token 'security-tint'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 12090 due to match with token 'envelopes'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 9588 due to match with token 'envelopes'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 16981 due to match with token 'envelopes'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 3914 due to match with token 'security-tint'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 15886 due to match with token 'security-tint'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 3756 due to match with token 'security-tint'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 13932 due to match with token 'security-tint'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 11825 due to match with token 'envelopes'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 11730 due to match with token 'security-tint'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 9079 due to match with token 'envelopes'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 9732 due to match with token 'security-tint'
+2026-01-01 14:50:15.689 | INFO     | app.application.services.rag_service:_retrieve_context:270 - Boosting chunk 6282 due to match with token 'envelopes'
+2026-01-01 14:50:15.690 | INFO     | app.application.services.rag_service:_retrieve_context:281 - Reranker top score (after boost): 13.941336631774902
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 5741 score: 13.941336631774902
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 10390 score: 13.858826637268066
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 16624 score: 13.645613670349121
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 11212 score: 13.547271728515625
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 11571 score: 13.431442260742188
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 7190 score: 13.342859268188477
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 4479 score: 13.312590599060059
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 3855 score: 13.293211936950684
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 4044 score: 13.229817390441895
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 4328 score: 13.223111152648926
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 12090 score: 13.188365936279297
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 9588 score: 13.185897827148438
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 16981 score: 13.129680633544922
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 3914 score: 13.100536346435547
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 15886 score: 13.09813404083252
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 3756 score: 13.068038940429688
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 13932 score: 13.039506912231445
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 11825 score: 13.010290145874023
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 11730 score: 12.817618370056152
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 9079 score: 12.669380187988281
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 9732 score: 12.64848518371582
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 6282 score: 12.462082862854004
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 2442 score: -7.736784934997559
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:305 - Filtered chunk 2442 (score -7.736784934997559 too low compared to best 13.941336631774902)
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 2441 score: -10.569232940673828
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:305 - Filtered chunk 2441 (score -10.569232940673828 too low compared to best 13.941336631774902)
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 2450 score: -10.878108024597168
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:305 - Filtered chunk 2450 (score -10.878108024597168 too low compared to best 13.941336631774902)
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 5959 score: -11.136690139770508
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:305 - Filtered chunk 5959 (score -11.136690139770508 too low compared to best 13.941336631774902)
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 5957 score: -11.213199615478516
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:305 - Filtered chunk 5957 (score -11.213199615478516 too low compared to best 13.941336631774902)
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 3736 score: -11.260430335998535
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:305 - Filtered chunk 3736 (score -11.260430335998535 too low compared to best 13.941336631774902)
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 5845 score: -11.375699996948242
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:305 - Filtered chunk 5845 (score -11.375699996948242 too low compared to best 13.941336631774902)
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 6014 score: -11.385941505432129
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:305 - Filtered chunk 6014 (score -11.385941505432129 too low compared to best 13.941336631774902)
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 5525 score: -11.387250900268555
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:305 - Filtered chunk 5525 (score -11.387250900268555 too low compared to best 13.941336631774902)
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 3738 score: -11.388815879821777
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:305 - Filtered chunk 3738 (score -11.388815879821777 too low compared to best 13.941336631774902)
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 5844 score: -11.393186569213867
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:305 - Filtered chunk 5844 (score -11.393186569213867 too low compared to best 13.941336631774902)
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 5977 score: -11.393519401550293
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:305 - Filtered chunk 5977 (score -11.393519401550293 too low compared to best 13.941336631774902)
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 3221 score: -11.395179748535156
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:305 - Filtered chunk 3221 (score -11.395179748535156 too low compared to best 13.941336631774902)
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 3591 score: -11.404708862304688
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:305 - Filtered chunk 3591 (score -11.404708862304688 too low compared to best 13.941336631774902)
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:288 - Chunk 3590 score: -11.410070419311523
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:305 - Filtered chunk 3590 (score -11.410070419311523 too low compared to best 13.941336631774902)
+2026-01-01 14:50:15.690 | DEBUG    | app.application.services.rag_service:_retrieve_context:307 - Retrieval took 3.654s. Selected 22 chunks.
+2026-01-01 14:50:15,692 INFO sqlalchemy.engine.Engine SELECT documents.id AS documents_id, documents.filename AS documents_filename, documents.original_filename AS documents_original_filename, documents.file_path AS documents_file_path, documents.file_size_mb AS documents_file_size_mb, documents.mime_type AS documents_mime_type, documents.total_pages AS documents_total_pages, documents.title AS documents_title, documents.classification AS documents_classification, documents.status AS documents_status, documents.uploaded_by AS documents_uploaded_by, documents.uploaded_at AS documents_uploaded_at, documents.processed_at AS documents_processed_at, documents.error_message AS documents_error_message, documents.metadata_json AS documents_metadata_json, documents.content_hash AS documents_content_hash 
+FROM documents 
+WHERE documents.id = :pk_1
+2026-01-01 14:50:15,692 INFO sqlalchemy.engine.Engine [generated in 0.00014s] {'pk_1': 44}
+2026-01-01 14:50:15.701 | WARNING  | app.application.services.rag_service:query:381 - Context limit reached (1988 + 135 > 2000). Dropping remaining chunks.
+2026-01-01 14:50:15.702 | DEBUG    | app.application.services.rag_service:query:437 - Starting LLM generation...
+2026-01-01 14:50:52.559 | DEBUG    | app.infrastructure.llm.mistral_adapter:generate:139 - Llama output keys: dict_keys(['id', 'object', 'created', 'model', 'choices', 'usage'])
+2026-01-01 14:50:52.717 | DEBUG    | app.application.services.rag_service:query:439 - LLM generation took 37.011s
+2026-01-01 14:50:52.735 | DEBUG    | app.application.services.rag_service:query:458 - Skipping duplicate citation for (44, 1)
+2026-01-01 14:50:52.735 | DEBUG    | app.application.services.rag_service:query:458 - Skipping duplicate citation for (44, 1)
+2026-01-01 14:50:52.738 | DEBUG    | app.application.services.rag_service:query:458 - Skipping duplicate citation for (44, 1)
+2026-01-01 14:50:52.738 | DEBUG    | app.application.services.rag_service:query:458 - Skipping duplicate citation for (44, 1)
+2026-01-01 14:50:52.738 | DEBUG    | app.application.services.rag_service:query:458 - Skipping duplicate citation for (44, 1)
+2026-01-01 14:50:52.740 | DEBUG    | app.application.services.rag_service:query:458 - Skipping duplicate citation for (44, 1)
+2026-01-01 14:50:52.743 | DEBUG    | app.application.services.rag_service:query:458 - Skipping duplicate citation for (44, 1)
+2026-01-01 14:50:52.744 | DEBUG    | app.application.services.rag_service:query:458 - Skipping duplicate citation for (44, 1)
+2026-01-01 14:50:52.744 | DEBUG    | app.application.services.rag_service:query:458 - Skipping duplicate citation for (44, 1)
+2026-01-01 14:50:52.745 | DEBUG    | app.application.services.rag_service:query:458 - Skipping duplicate citation for (44, 1)
+2026-01-01 14:50:52.746 | DEBUG    | app.application.services.rag_service:query:458 - Skipping duplicate citation for (44, 1)
+2026-01-01 14:50:52.746 | DEBUG    | app.application.services.rag_service:query:458 - Skipping duplicate citation for (44, 1)
+2026-01-01 14:50:52.749 | DEBUG    | app.application.services.rag_service:query:458 - Skipping duplicate citation for (44, 1)
+2026-01-01 14:50:52.749 | DEBUG    | app.application.services.rag_service:query:458 - Skipping duplicate citation for (44, 1)
+2026-01-01 14:50:52.760 | INFO     | app.application.services.rag_service:query:460 - Total RAG query time: 41.033s
+2026-01-01 14:50:52,888 INFO sqlalchemy.engine.Engine ROLLBACK

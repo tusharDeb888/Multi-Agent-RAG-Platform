@@ -1,0 +1,39 @@
+2026-01-01 10:45:31.731 | INFO     | app.infrastructure.embeddings.embedding_service:_load_model:52 - Loading embedding model: sentence-transformers/all-MiniLM-L6-v2
+2026-01-01 10:45:37.730 | INFO     | app.infrastructure.embeddings.embedding_service:_load_model:54 - Embedding model loaded successfully
+2026-01-01 10:45:37.977 | INFO     | app.infrastructure.vector_store.faiss_store:_initialize_index:48 - Initialized FAISS HNSW index with dimension 384
+2026-01-01 10:45:37.995 | INFO     | app.infrastructure.vector_store.faiss_store:load:164 - Loaded FAISS index from ./data/faiss_index.index. Total: 9067
+2026-01-01 10:45:38.027 | INFO     | app.application.services.ingestion_service:process_document:94 - Starting processing for document 8: DSA patterns Cheat Sheet - Sheet1.pdf
+2026-01-01 10:45:38.309 | INFO     | app.application.services.ingestion_service:_extract_text:257 - Found 1 tables on page 1
+2026-01-01 10:45:38.310 | INFO     | app.application.services.ingestion_service:_extract_text:356 - Page 1 Pre-Vision Check: TextLen=13473, Garbage=False, Provider=ollama
+2026-01-01 10:45:38.310 | INFO     | app.application.services.ingestion_service:_extract_text:388 - FINAL TEXT for Page 1 (Len=13473): INSTA Channel. One question Daily Pattern Question Link 1 Link 2 Link 3 1. Pattern: Two Pointers Pair with Target Sum (easy) https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/description/...
+2026-01-01 10:45:38.767 | INFO     | app.application.services.ingestion_service:_extract_text:257 - Found 1 tables on page 2
+2026-01-01 10:45:38.768 | INFO     | app.application.services.ingestion_service:_extract_text:356 - Page 2 Pre-Vision Check: TextLen=11688, Garbage=False, Provider=ollama
+2026-01-01 10:45:38.768 | INFO     | app.application.services.ingestion_service:_extract_text:388 - FINAL TEXT for Page 2 (Len=11688): Find all Duplicate Numbers (easy) https://leetcode.com/problems/find-all-duplicates-in-an-array/ Problem Challenge 1: Find the Corrupt Pair (easy) https://thecodingsimplified.com/find-currupt-pair/ Pr...
+2026-01-01 10:45:39.075 | INFO     | app.application.services.ingestion_service:_extract_text:257 - Found 1 tables on page 3
+2026-01-01 10:45:39.075 | INFO     | app.application.services.ingestion_service:_extract_text:356 - Page 3 Pre-Vision Check: TextLen=11302, Garbage=False, Provider=ollama
+2026-01-01 10:45:39.075 | INFO     | app.application.services.ingestion_service:_extract_text:388 - FINAL TEXT for Page 3 (Len=11302): 15. Pattern: Subsets Subsets (easy) https://www.educative.io/courses/grokking-the-coding-interview/gx2OqlvEnWG Subsets With Duplicates (easy) https://www.educative.io/courses/grokking-the-coding-inter...
+2026-01-01 10:45:39.268 | INFO     | app.application.services.ingestion_service:_extract_text:257 - Found 1 tables on page 4
+2026-01-01 10:45:39.268 | INFO     | app.application.services.ingestion_service:_extract_text:356 - Page 4 Pre-Vision Check: TextLen=5633, Garbage=False, Provider=ollama
+2026-01-01 10:45:39.268 | INFO     | app.application.services.ingestion_service:_extract_text:388 - FINAL TEXT for Page 4 (Len=5633): 22. Pattern: Backtracking Combination Sum (medium) https://leetcode.com/problems/combination-sum/ https://leetcode.com/problems/combination-sum-ii/ https://leetcode.com/problems/combination-sum-iii/ W...
+2026-01-01 10:45:39.375 | INFO     | app.application.services.ingestion_service:_chunk_text:556 - Chunking Page 1: ContentLen=13473
+2026-01-01 10:45:39.376 | INFO     | app.application.services.ingestion_service:_chunk_text:560 - Page 1 split into 32 chunks
+2026-01-01 10:45:39.376 | INFO     | app.application.services.ingestion_service:_chunk_text:556 - Chunking Page 2: ContentLen=11688
+2026-01-01 10:45:39.376 | INFO     | app.application.services.ingestion_service:_chunk_text:560 - Page 2 split into 27 chunks
+2026-01-01 10:45:39.376 | INFO     | app.application.services.ingestion_service:_chunk_text:556 - Chunking Page 3: ContentLen=11302
+2026-01-01 10:45:39.376 | INFO     | app.application.services.ingestion_service:_chunk_text:560 - Page 3 split into 27 chunks
+2026-01-01 10:45:39.377 | INFO     | app.application.services.ingestion_service:_chunk_text:556 - Chunking Page 4: ContentLen=5633
+2026-01-01 10:45:39.377 | INFO     | app.application.services.ingestion_service:_chunk_text:560 - Page 4 split into 14 chunks
+2026-01-01 10:45:39.558 | INFO     | app.application.services.ingestion_service:process_document:156 - Generating embeddings for 100 chunks
+2026-01-01 10:45:43.493 | INFO     | app.application.services.ingestion_service:process_document:178 - Adding 100 vectors to VectorIndexType.FAISS store
+2026-01-01 10:45:43.542 | INFO     | app.infrastructure.vector_store.faiss_store:add_vectors:69 - Added 100 vectors to FAISS index. Total: 9167
+2026-01-01 10:45:43.543 | INFO     | app.application.services.ingestion_service:process_document:186 - Starting BM25 index update...
+2026-01-01 10:45:43.559 | INFO     | app.application.services.ingestion_service:process_document:191 - Streaming chunks from DB for BM25...
+2026-01-01 10:45:43.559 | INFO     | app.infrastructure.retrievers.sparse_bm25:fit:52 - Building Sparse BM25 index...
+2026-01-01 10:45:43.700 | INFO     | app.infrastructure.retrievers.sparse_bm25:fit:80 - BM25 index built. Docs: 1905, Vocab: 19790
+2026-01-01 10:45:43.700 | INFO     | app.application.services.ingestion_service:process_document:202 - BM25 fit took 0.14s. Vocab size: 19790
+2026-01-01 10:45:43.732 | INFO     | app.infrastructure.retrievers.sparse_bm25:save:174 - Saved Sparse BM25 index to ./data/faiss_index.bm25.pkl
+2026-01-01 10:45:43.732 | INFO     | app.application.services.ingestion_service:process_document:205 - BM25 index saved successfully
+2026-01-01 10:45:43.732 | INFO     | app.application.services.ingestion_service:process_document:212 - Saving FAISS index to disk...
+2026-01-01 10:45:43.743 | INFO     | app.infrastructure.vector_store.faiss_store:save:154 - Saved FAISS index to ./data/faiss_index.index
+2026-01-01 10:45:43.743 | INFO     | app.application.services.ingestion_service:process_document:214 - FAISS index saved
+2026-01-01 10:45:43.812 | INFO     | app.application.services.ingestion_service:process_document:221 - Successfully processed document 8
