@@ -58,7 +58,7 @@ python -m pytest tests/
 - **Authentication**: Login via `/api/v1/auth/login`.
 # IOCL-RAG-System
 
-# System Architecture: ISK-AI (Internal Search & Knowledge AI)
+# System Architecture: IOCL-AI (Internal Search & Knowledge AI)
 
 ## 1. High-Level Overview
 ISK-AI is a secure, Retrieval-Augmented Generation (RAG) system designed to allow users to query internal documents using natural language. It leverages local Large Language Models (LLMs) and Vector Search to provide accurate, context-aware answers while maintaining strict data privacy and security.
