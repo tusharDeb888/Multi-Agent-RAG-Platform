@@ -279,7 +279,6 @@ Holds the "Search" Data.
 ---
 
 ## 9. Future Roadmap
--   **High Availability:** Replace local FAISS with a vector database like Milvus or PGVector for scaling >1M docs.
 -   **Advanced Vision:** Support specific chart extraction (CSV generation from images).
 -   **Fine-tuning:** Fine-tune Llama 3.2 on internal domain language (e.g., Oil & Gas jargon).
 
