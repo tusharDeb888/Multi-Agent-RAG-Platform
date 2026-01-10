@@ -3,10 +3,11 @@ Mistral-3B quantized adapter for development environment.
 Follows Liskov Substitution Principle - can be substituted for any BaseLLMAdapter.
 """
 import os
-from typing import Dict, Optional
+from typing import Dict, Optional, AsyncIterator
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from loguru import logger
+import asyncio
 
 try:
     from llama_cpp import Llama
@@ -31,6 +32,8 @@ class LocalLLMAdapter(BaseLLMAdapter):
         self.tokenizer = None
         self.model = None
         self._is_loaded = False
+        
+        self._lock = asyncio.Lock()
         
         if self.model_path:
             self._load_model()
@@ -99,11 +102,17 @@ class LocalLLMAdapter(BaseLLMAdapter):
             self._is_loaded = False
             raise
     
-    def generate(self, request: LLMRequest) -> LLMResponse:
-        """Generate text."""
+    async def generate(self, request: LLMRequest) -> LLMResponse:
+        """Generate text (Async wrapper around sync models)."""
         if not self._is_loaded:
             raise RuntimeError("Model not loaded")
-        
+            
+        async with self._lock:
+            # Offload compute-heavy generation to thread
+            return await asyncio.to_thread(self._generate_sync, request)
+
+    def _generate_sync(self, request: LLMRequest) -> LLMResponse:
+        """Internal synchronous generation logic."""
         try:
             # Construct full prompt
             full_prompt = request.prompt
@@ -115,15 +124,8 @@ class LocalLLMAdapter(BaseLLMAdapter):
                 max_tokens = request.max_tokens or self.settings.llm_max_tokens
                 temperature = request.temperature if request.temperature is not None else self.settings.llm_temperature
                 
-                # Construct messages for chat completion
                 system_prompt = request.system_prompt or (
-                    "You are an intelligent, strictly grounded AI assistant. "
-                    "Your goal is to answer the user's question using ONLY the provided Context. "
-                    "1. **Grounding**: Do NOT use your own training data for facts. Use values and procedures from the Context ONLY. "
-                    "2. **Intent Understanding**: You MAY use your general knowledge to UNDERSTAND the user's question (e.g., synonyms, intent), but the ANSWER must come from Context. "
-                    "3. **Completeness**: If the Context has partial info, provide it. If it has nothing relevant, say: 'I cannot find the answer in the provided documents.' "
-                    "4. **Formatting**: Use Markdown and clear structure. "
-                    "5. **Refusal**: Do not make up answers. If the context is empty or irrelevant, refuse politely."
+                    "You are an intelligent AI."
                 )
                 messages = [
                     {"role": "system", "content": system_prompt},
@@ -136,34 +138,42 @@ class LocalLLMAdapter(BaseLLMAdapter):
                     temperature=temperature,
                     stop=request.stop_sequences or [],
                 )
-                logger.debug(f"Llama output keys: {output.keys()}")
                 
                 choice = output['choices'][0]
-                text = choice['message']['content']
-                tokens_used = output['usage']['total_tokens']
-                finish_reason = choice['finish_reason']
-                
+                model_name = os.path.basename(self.model_path) if self.model_path else "local-llm"
                 return LLMResponse(
-                    text=text.strip(),
-                    tokens_used=tokens_used,
-                    model_name="mistral-gguf",
-                    finish_reason=finish_reason
+                    text=choice['message']['content'].strip(),
+                    tokens_used=output['usage']['total_tokens'],
+                    model_name=model_name,
+                    finish_reason=choice['finish_reason']
                 )
 
             # Transformers Generation
-            # Tokenize
+            
+            # Prepare messages ensuring system prompt is included
+            system_prompt = request.system_prompt or "You are a helpful AI."
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Context:\n{request.context}\n\nQuestion:\n{request.prompt}"}
+            ]
+            
+            # Apply chat template (Critical for Instruct models)
+            full_prompt = self.tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True
+            )
+            
             inputs = self.tokenizer(
                 full_prompt,
                 return_tensors="pt",
                 truncation=True,
-                max_length=self.settings.llm_context_length - 100  # Reserve space for response
+                max_length=self.settings.llm_context_length - 100
             ).to(self.model.device)
             
-            # Generation parameters
             max_tokens = request.max_tokens or self.settings.llm_max_tokens
             temperature = request.temperature if request.temperature is not None else self.settings.llm_temperature
             
-            # Generate
             with torch.no_grad():
                 outputs = self.model.generate(
                     **inputs,
@@ -175,16 +185,16 @@ class LocalLLMAdapter(BaseLLMAdapter):
                     stop_strings=request.stop_sequences if request.stop_sequences else None
                 )
             
-            # Decode
             generated_text = self.tokenizer.decode(
                 outputs[0][inputs['input_ids'].shape[1]:],
                 skip_special_tokens=True
             )
             
+            model_name = os.path.basename(self.model_path) if self.model_path else "local-llm"
             return LLMResponse(
                 text=generated_text.strip(),
-                tokens_used=tokens_used,
-                model_name="mistral-3b-quantized",
+                tokens_used=-1, # Not easily tracked in transformers simple gen
+                model_name=model_name,
                 finish_reason="stop"
             )
             
@@ -192,56 +202,129 @@ class LocalLLMAdapter(BaseLLMAdapter):
             logger.error(f"Error during generation: {e}")
             raise
 
-    def stream(self, request: LLMRequest):
-        """Stream text generation."""
+    async def stream(self, request: LLMRequest) -> AsyncIterator[LLMResponse]:
+        """Stream text generation (Async iterable)."""
         if not self._is_loaded:
             raise RuntimeError("Model not loaded")
             
-        try:
-            # Construct full prompt (same logic as generate)
-            full_prompt = request.prompt
-            if request.context:
-                full_prompt = f"Context:\n{request.context}\n\nQuestion:\n{request.prompt}\n\nAnswer:"
-                
-            # GGUF Streaming
+        # Lock during the entire stream to prevent VRAM contention
+        # This means only one user can stream from Local LLM at a time.
+        async with self._lock:
+            # 1. GGUF Streaming (Async wrapper)
             if hasattr(self, 'model') and isinstance(self.model, Llama):
-                max_tokens = request.max_tokens or self.settings.llm_max_tokens
-                temperature = request.temperature if request.temperature is not None else self.settings.llm_temperature
-                
-                system_prompt = request.system_prompt or (
-                    "You are an intelligent, strictly grounded AI assistant. "
-                    "Your goal is to answer the user's question using ONLY the provided Context. "
-                    "1. **Grounding**: Do NOT use your own training data for facts. Use values and procedures from the Context ONLY. "
-                    "2. **Intent Understanding**: You MAY use your general knowledge to UNDERSTAND the user's question (e.g., synonyms, intent), but the ANSWER must come from Context. "
-                    "3. **Completeness**: If the Context has partial info, provide it. If it has nothing relevant, say: 'I cannot find the answer in the provided documents.' "
-                    "4. **Formatting**: Use Markdown and clear structure. "
-                    "5. **Refusal**: Do not make up answers. If the context is empty or irrelevant, refuse politely."
-                )
-                messages = [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Context:\n{request.context}\n\nQuestion:\n{request.prompt}"}
-                ]
-                
-                stream = self.model.create_chat_completion(
-                    messages=messages,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    stop=request.stop_sequences or [],
-                    stream=True
-                )
-                
-                for chunk in stream:
-                    delta = chunk['choices'][0]['delta']
-                    if 'content' in delta:
-                        yield delta['content']
-                return
+             # GGUF's create_chat_completion returns a sync generator.
+             # We must iterate it in a thread to avoid blocking loop.
+             
+             # Create the generator (NOTE: this call might be fast, but iteration is slow)
+             # We run the creation in a thread too to be safe.
+             generator = await asyncio.to_thread(self._create_gguf_generator, request)
+             
+             # Iterate async
+             def _safe_next(iterator):
+                 try:
+                     return next(iterator)
+                 except StopIteration:
+                     return None
+                 except Exception as e:
+                     raise e
 
-            # Transformers Streaming
-            from transformers import TextIteratorStreamer
-            from threading import Thread
+             while True:
+                 try:
+                     chunk = await asyncio.to_thread(_safe_next, generator)
+                     
+                     if chunk is None:
+                         break
+                     
+                     # Extract data
+                     delta = chunk['choices'][0]['delta']
+                     content = delta.get('content', '')
+                     
+                     # Llama-cpp-python usage in last chunk? 
+                     # Often not present in stream chunks until finish.
+                     # We wrap in LLMResponse
+                     model_name = os.path.basename(self.model_path) if self.model_path else "local-llm"
+                     yield LLMResponse(
+                         text=content,
+                         tokens_used=None, # Usage tracking in stream difficult for wrappers
+                         model_name=model_name,
+                         finish_reason=chunk['choices'][0].get('finish_reason')
+                     )
+                 except Exception as e:
+                     logger.error(f"GGUF Stream Error: {e}")
+                     # If it's a critical error, we might yield an error chunk or break
+                     # For now, let's break to avoid infinite loop on error
+                     yield LLMResponse(text=f"[Error: {e}]", finish_reason='error')
+                     break
+             return
+             return
+
+        # 2. Transformers Streaming
+        # The existing logic uses a Thread and a Queue (TextIteratorStreamer).
+        # We just need to wrap the queue polling.
+        
+        from transformers import TextIteratorStreamer
+        from threading import Thread
+        
+        streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
+        
+        # Launch generation in background thread (Compute bound)
+        thread = Thread(target=self._run_transformers_generation, args=(request, streamer))
+        thread.start()
+        
+        # Poll the streamer queue without blocking async loop
+        # TextIteratorStreamer is an iterator that blocks on next().
+        # We wrap next() in to_thread.
+        
+        while True:
+            try:
+                new_text = await asyncio.to_thread(next, streamer)
+                yield LLMResponse(
+                    text=new_text,
+                    model_name="mistral-local",
+                    tokens_used=None
+                )
+            except StopIteration:
+                break
+            except Exception as e:
+                logger.error(f"Transformers Stream Error: {e}")
+                raise
+
+    def _create_gguf_generator(self, request):
+        """Helper to create GGUF generator sync."""
+        max_tokens = request.max_tokens or self.settings.llm_max_tokens
+        temperature = request.temperature if request.temperature is not None else self.settings.llm_temperature
+        
+        system_prompt = request.system_prompt or "You are a helpful AI."
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"Context:\n{request.context}\n\nQuestion:\n{request.prompt}"}
+        ]
+        
+        return self.model.create_chat_completion(
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            stop=request.stop_sequences or [],
+            stream=True
+        )
+
+    def _run_transformers_generation(self, request, streamer):
+        """Helper target for Thread."""
+        try:
+            # Prepare messages
+            system_prompt = request.system_prompt or "You are a helpful AI."
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Context:\n{request.context}\n\nQuestion:\n{request.prompt}"}
+            ]
             
-            streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
-            
+            # Apply chat template
+            full_prompt = self.tokenizer.apply_chat_template(
+                messages,
+                tokenize=False,
+                add_generation_prompt=True
+            )
+                
             inputs = self.tokenizer(
                 full_prompt,
                 return_tensors="pt",
@@ -249,32 +332,33 @@ class LocalLLMAdapter(BaseLLMAdapter):
                 max_length=self.settings.llm_context_length - 100
             ).to(self.model.device)
             
-            generation_kwargs = dict(
-                inputs,
+            max_tokens = request.max_tokens or self.settings.llm_max_tokens
+            temperature = request.temperature if request.temperature is not None else self.settings.llm_temperature
+            
+            self.model.generate(
+                **inputs,
                 streamer=streamer,
-                max_new_tokens=request.max_tokens or self.settings.llm_max_tokens,
-                temperature=request.temperature if request.temperature is not None else self.settings.llm_temperature,
-                do_sample=request.temperature > 0,
+                max_new_tokens=max_tokens,
+                temperature=temperature,
+                do_sample=temperature > 0,
                 pad_token_id=self.tokenizer.pad_token_id,
                 eos_token_id=self.tokenizer.eos_token_id,
                 stop_strings=request.stop_sequences if request.stop_sequences else None
             )
-            
-            thread = Thread(target=self.model.generate, kwargs=generation_kwargs)
-            thread.start()
-            
-            for new_text in streamer:
-                yield new_text
-                
         except Exception as e:
-            logger.error(f"Error during streaming: {e}")
-            raise
+            logger.error(f"Threaded Generation Failed: {e}")
+            # Streamer might block forever if we crash? 
+            # We must ensure the streamer is terminated to unblock the consumer.
+            pass
+        finally:
+            if streamer:
+                streamer.end()
     
     def get_model_info(self) -> Dict[str, str]:
         """Get model information."""
         return {
-            "provider": "Llama-3.2",
-            "model_name": "Llama-3.2-3B-Instruct-Q4_K_M",
+            "provider": "Local (GGUF/Transformers)",
+            "model_path": self.model_path,
             "quantization": self.settings.llm_quantization,
             "context_length": str(self.settings.llm_context_length),
             "status": "loaded" if self._is_loaded else "not_loaded"
@@ -282,19 +366,25 @@ class LocalLLMAdapter(BaseLLMAdapter):
     
     def is_available(self) -> bool:
         """Check if model is available."""
-        return self._is_loaded and self.model is not None and self.tokenizer is not None
+        return self._is_loaded and self.model is not None
     
-    def cleanup(self) -> None:
+    async def cleanup(self) -> None:
         """Clean up model resources."""
-        if self.model:
-            del self.model
-            self.model = None
-        if self.tokenizer:
-            del self.tokenizer
-            self.tokenizer = None
-        torch.cuda.empty_cache() if torch.cuda.is_available() else None
-        self._is_loaded = False
-        logger.info("Llama-3.2 model cleaned up")
+        # Use a lock to ensure no generation is happening while cleaning up
+        async with self._lock:
+            if self.model:
+                del self.model
+                self.model = None
+            if self.tokenizer:
+                del self.tokenizer
+                self.tokenizer = None
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+            
+            self._is_loaded = False
+            logger.info(f"{self.settings.llm_provider} model cleaned up")
 
 
 

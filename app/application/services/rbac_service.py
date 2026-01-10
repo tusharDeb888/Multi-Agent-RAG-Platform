@@ -64,9 +64,10 @@ class RBACService:
             return False
         
         # Super admin has access to everything
+        # [Security Fix] Normalize comparison to handle case differences
         user_roles = self.get_user_roles(user_id)
-        role_names = [role.role.name for role in user.roles]
-        if UserRole.SUPER_ADMIN.value in role_names:
+        role_names = [role.role.name.lower() for role in user.roles]
+        if UserRole.SUPER_ADMIN.value.lower() in role_names:
             return True
         
         # Check document-level policies
@@ -101,9 +102,9 @@ class RBACService:
         if not user or not user.is_active:
              return []
         
-        # Super admin bypass
-        role_names = [role.role.name for role in user.roles]
-        if UserRole.SUPER_ADMIN.value in role_names:
+        # [Security Fix] Normalize comparison to handle case differences
+        role_names = [role.role.name.lower() for role in user.roles]
+        if UserRole.SUPER_ADMIN.value.lower() in role_names:
             return document_ids
 
         # 1. Base Role/Dept Policy Filter
@@ -149,9 +150,9 @@ class RBACService:
         if not user or not user.is_active:
             return []
         
-        # Super admin bypass
-        role_names = [role.role.name for role in user.roles]
-        if UserRole.SUPER_ADMIN.value in role_names:
+        # [Security Fix] Normalize comparison to handle case differences
+        role_names = [role.role.name.lower() for role in user.roles]
+        if UserRole.SUPER_ADMIN.value.lower() in role_names:
             return chunk_ids
         
         # 1. Phase 1: Policy Decision (Document Level)
@@ -216,16 +217,17 @@ class RBACService:
         if not user or not user.is_active:
             return []
         
-        # Super admin bypass
-        role_names = [role.role.name for role in user.roles]
-        if UserRole.SUPER_ADMIN.value in role_names:
+        # [Security Fix] Normalize comparison to handle case differences
+        role_names = [role.role.name.lower() for role in user.roles]
+        if UserRole.SUPER_ADMIN.value.lower() in role_names:
             return None # None means "All" / No Filter
             
         # 1. Get Allowed Docs (Phase 1)
+        user_roles = self.get_user_roles(user_id)
         allowed_doc_ids = self.doc_policy_repo.get_accessible_documents(
             user_id=user_id,
             user_department_id=user.department_id,
-            user_role_ids=self.get_user_roles(user_id)
+            user_role_ids=user_roles
         )
         
         if not allowed_doc_ids:
@@ -233,7 +235,30 @@ class RBACService:
             
         # 2. Get Chunks for Docs
         chunk_ids = self.chunk_policy_repo.get_chunks_for_documents(allowed_doc_ids)
-        return chunk_ids
+        
+        if not chunk_ids:
+            return []
+        
+        # [CRITICAL SECURITY FIX] 3. Apply MAC Clearance Filter
+        # Without this, users could access chunks from documents above their clearance level
+        from app.domain.models import DocumentChunk, Document
+        
+        candidate_chunks = self.db.query(DocumentChunk.id, Document.classification)\
+            .join(Document, DocumentChunk.document_id == Document.id)\
+            .filter(DocumentChunk.id.in_(chunk_ids))\
+            .all()
+            
+        user_clearance_rank = self._rank(user.clearance_level)
+        
+        final_ids = []
+        for chunk_id, classification in candidate_chunks:
+            doc_rank = self._rank(classification)
+            if user_clearance_rank >= doc_rank:
+                final_ids.append(chunk_id)
+            else:
+                logger.debug(f"Clearance Filter: Dropped chunk {chunk_id} (Doc Class {doc_rank} > User Clearance {user_clearance_rank})")
+        
+        return final_ids
 
 
 

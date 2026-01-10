@@ -7,7 +7,8 @@ from enum import Enum
 from typing import Optional, List
 from sqlalchemy import (
     Column, Integer, String, Text, DateTime, Boolean, 
-    ForeignKey, Float, LargeBinary, Enum as SQLEnum, Identity, Table
+    ForeignKey, Float, Enum as SQLEnum, Identity, Table,
+    UniqueConstraint, Index, func
 )
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -29,7 +30,7 @@ class Department(Base):
     id = Column(Integer, Identity(start=1), primary_key=True)
     name = Column(String(100), unique=True, nullable=False)
     description = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     # Relationships
     users = relationship("User", back_populates="department")
@@ -47,12 +48,16 @@ class UserRole(str, Enum):
 
 class DocumentStatus(str, Enum):
     """Document processing status."""
-    PENDING = "pending"
-    PROCESSING = "processing"
-    PARTIAL = "partial"         # Some chunks indexed, search available but incomplete
-    SEARCHABLE = "searchable"   # Fully indexed and ready
-    COMPLETED = "completed"     # Legacy/Done
-    FAILED = "failed"
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    EXTRACTING = "EXTRACTING"   # OCR / Text Extraction
+    CHUNKING = "CHUNKING"       # Splitting text
+    EMBEDDING = "EMBEDDING"     # Generating vectors
+    INDEXING = "INDEXING"       # Saving to Vector Store / DB
+    PARTIAL = "PARTIAL"         # Some chunks indexed, search available but incomplete
+    SEARCHABLE = "SEARCHABLE"   # Fully indexed and ready
+    COMPLETED = "COMPLETED"     # Legacy/Done
+    FAILED = "FAILED"
 
 
 class ClassificationLevel(str, Enum):
@@ -63,23 +68,45 @@ class ClassificationLevel(str, Enum):
     RESTRICTED = "restricted"
 
 
+class AccessType(str, Enum):
+    """Access control permission types."""
+    READ = "read"
+    WRITE = "write"
+    DELETE = "delete"
+    ADMIN = "admin"
+
+
+class AuditAction(str, Enum):
+    """Audit log action types."""
+    LOGIN = "login"
+    LOGOUT = "logout"
+    QUERY = "query"
+    UPLOAD = "upload"
+    DELETE = "delete"
+    ACCESS = "access"
+    UPDATE = "update"
+    FAILED_LOGIN = "failed_login"
+
+
+
 class User(Base):
     """User domain model."""
     __tablename__ = "users"
     
     id = Column(Integer, Identity(start=1), primary_key=True)
-    username = Column(String(100), unique=True, index=True, nullable=False)
-    email = Column(String(255), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
-    full_name = Column(String(255), nullable=False)
+    username = Column(String(100), unique=True, nullable=False)
+    email = Column(String(255), unique=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=False)
     # department = Column(String(100), nullable=False) # Deprecated
-    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True) # Nullable for transition/superadmins without dept
+    department_id = Column(Integer, ForeignKey("departments.id", ondelete="SET NULL"), nullable=True, index=True) # Nullable for transition/superadmins without dept
 
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_deleted = Column(Boolean, default=False, nullable=False)  # Soft Delete
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    last_login = Column(DateTime(timezone=True), nullable=True)
+    failed_login_attempts = Column(Integer, default=0, nullable=False)
     
     # Security Clearance
     clearance_level = Column(SQLEnum(ClassificationLevel), default=ClassificationLevel.INTERNAL)
@@ -98,7 +125,7 @@ class Role(Base):
     id = Column(Integer, Identity(start=1), primary_key=True)
     name = Column(String(50), unique=True, nullable=False)
     description = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     # Relationships
     user_roles = relationship("UserRoleMap", back_populates="role")
@@ -107,12 +134,15 @@ class Role(Base):
 class UserRoleMap(Base):
     """User-Role mapping (many-to-many)."""
     __tablename__ = "user_role_map"
+    __table_args__ = (
+        UniqueConstraint('user_id', 'role_id', name='uq_user_role'),
+    )
     
     id = Column(Integer, Identity(start=1), primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=False)
-    granted_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    granted_by = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=False, index=True)
+    granted_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    granted_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
     
     # Relationships
     user = relationship("User", foreign_keys=[user_id], back_populates="roles")
@@ -121,7 +151,12 @@ class UserRoleMap(Base):
 
 class Document(Base):
     """Document domain model."""
+    """Document domain model."""
     __tablename__ = "documents"
+    __table_args__ = (
+        UniqueConstraint('content_hash', name='uq_document_content_hash'),
+        UniqueConstraint('file_path', name='uq_document_file_path'),
+    )
     
     id = Column(Integer, Identity(start=1), primary_key=True)
     filename = Column(String(500), nullable=False)
@@ -134,15 +169,17 @@ class Document(Base):
     # department_id = Column(Integer, ForeignKey("departments.id"), nullable=True) # Replaced by M2M
 
     classification = Column(SQLEnum(ClassificationLevel), default=ClassificationLevel.INTERNAL)
-    status = Column(SQLEnum(DocumentStatus), default=DocumentStatus.PENDING)
-    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    uploaded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    processed_at = Column(DateTime, nullable=True)
+    status = Column(SQLEnum(DocumentStatus), default=DocumentStatus.PENDING, index=True)
+    uploaded_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    # [Fix] Explicit Python default to avoid ORA-01400 if DB default is missing
+    uploaded_at = Column(DateTime(timezone=True), default=datetime.utcnow, server_default=func.now(), nullable=False, index=True)
+    processed_at = Column(DateTime(timezone=True), nullable=True)
     error_message = Column(Text, nullable=True)
     metadata_json = Column(Text, nullable=True)  # JSON string for flexible metadata
+    parser_version = Column(String(50), default="v1.0")  # Track pipeline version (e.g. "v1_recursive")
     
     # Deduplication
-    content_hash = Column(String(64), index=True, nullable=True)
+    content_hash = Column(String(64), nullable=True)
     
     # Relationships
     chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
@@ -153,18 +190,24 @@ class Document(Base):
 
 class DocumentChunk(Base):
     """Document chunk domain model for vectorization."""
+    """Document chunk domain model for vectorization."""
     __tablename__ = "document_chunks"
+    __table_args__ = (
+        UniqueConstraint('document_id', 'chunk_index', name='uq_chunk_doc_index'),
+        UniqueConstraint('vector_id', name='uq_chunk_vector_id'),
+    )
     
     id = Column(Integer, Identity(start=1), primary_key=True)
-    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
     chunk_index = Column(Integer, nullable=False)  # Order within document
     content = Column(Text, nullable=False)
     content_hash = Column(String(64), nullable=False)  # SHA-256 hash
     page_number = Column(Integer, nullable=True)
     start_char = Column(Integer, nullable=True)
     end_char = Column(Integer, nullable=True)
-    vector_id = Column(String(100), nullable=True)  # Reference to vector index
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    vector_id = Column(String(255), nullable=True)  # Reference to vector index
+    metadata_json = Column(Text, nullable=True)  # JSON string for flexible metadata
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     # Relationships
     document = relationship("Document", back_populates="chunks")
@@ -176,17 +219,16 @@ class DocumentAccessPolicy(Base):
     __tablename__ = "document_access_policies"
     
     id = Column(Integer, Identity(start=1), primary_key=True)
-    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
-    role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=True)
-    role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=True, index=True)
     # department = Column(String(100), nullable=True)  # Deprecated
-    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
+    department_id = Column(Integer, ForeignKey("departments.id", ondelete="CASCADE"), nullable=True, index=True)
 
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
-    access_type = Column(String(20), default="read", nullable=False)  # read, write, delete
-    valid_from = Column(DateTime, nullable=True)
-    valid_until = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    access_type = Column(SQLEnum(AccessType), default=AccessType.READ, nullable=False)
+    valid_from = Column(DateTime(timezone=True), nullable=True)
+    valid_until = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     # Relationships
     document = relationship("Document", back_populates="access_policies")
@@ -197,14 +239,13 @@ class ChunkAccessPolicy(Base):
     __tablename__ = "chunk_access_policies"
     
     id = Column(Integer, Identity(start=1), primary_key=True)
-    chunk_id = Column(Integer, ForeignKey("document_chunks.id", ondelete="CASCADE"), nullable=False)
-    role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=True)
-    role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=True)
+    chunk_id = Column(Integer, ForeignKey("document_chunks.id", ondelete="CASCADE"), nullable=False, index=True)
+    role_id = Column(Integer, ForeignKey("roles.id", ondelete="CASCADE"), nullable=True, index=True)
     # department = Column(String(100), nullable=True) # Deprecated
-    department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
+    department_id = Column(Integer, ForeignKey("departments.id", ondelete="CASCADE"), nullable=True, index=True)
 
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     # Relationships
     chunk = relationship("DocumentChunk", back_populates="access_policies")
@@ -213,18 +254,22 @@ class ChunkAccessPolicy(Base):
 class AuditLog(Base):
     """Audit log for compliance and security."""
     __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index('idx_audit_user_timestamp', 'user_id', 'timestamp'),
+    )
     
     id = Column(Integer, Identity(start=1), primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    action = Column(String(100), nullable=False)  # query, upload, delete, access, etc.
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    username_snapshot = Column(String(255), nullable=True)  # Snapshot key if user is deleted
+    action = Column(SQLEnum(AuditAction), nullable=False)
     resource_type = Column(String(50), nullable=False)  # document, chunk, user, etc.
-    resource_id = Column(Integer, nullable=True)
+    resource_id = Column(Integer, nullable=True, index=True)
     query_text = Column(Text, nullable=True)  # For query actions
     response_text = Column(Text, nullable=True)  # For query responses
     accessed_documents = Column(Text, nullable=True)  # JSON array of document IDs
     ip_address = Column(String(45), nullable=True)
-    user_agent = Column(String(500), nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    user_agent = Column(Text, nullable=True)
+    timestamp = Column(DateTime(timezone=True), server_default=func.now(), nullable=False, index=True)
     
     # Relationships
     user = relationship("User", back_populates="audit_logs")

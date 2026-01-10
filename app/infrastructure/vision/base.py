@@ -16,6 +16,14 @@ class BaseVisionAdapter(ABC):
             String description/caption of the image
         """
         pass
+
+    @abstractmethod
+    def transcribe_image(self, image_data: bytes) -> str:
+        """
+        Extract text from an image (OCR substitute).
+        Useful for handwritten or complex documents.
+        """
+        pass  
     
     @abstractmethod
     def is_available(self) -> bool:

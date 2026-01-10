@@ -35,9 +35,10 @@ ENV/
 *~
 
 # Environment
-.env
+
 .env.local
 .env.*.local
+.env
 
 # Logs
 *.log
@@ -64,9 +65,13 @@ vector_indices/
 .coverage
 htmlcov/
 .tox/
+tests/
 
 # Docker
 .dockerignore
+.docker-compose.yml
+.docker-compose.milvus.yml
+.Docker
 
 # OS
 .DS_Store
@@ -89,3 +94,7 @@ temp/
 
 # Backups
 backups/
+
+
+#others
+.scripts

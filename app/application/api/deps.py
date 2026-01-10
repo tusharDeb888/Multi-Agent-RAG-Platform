@@ -54,7 +54,7 @@ def get_current_user(
     if user is None:
         raise credentials_exception
         
-    if not user.is_active:
+    if not user.is_active or user.is_deleted:
         raise HTTPException(status_code=400, detail="Inactive user")
         
     return user
@@ -79,10 +79,6 @@ def get_current_user_flexible(
         
     return get_current_user(db, token)
 
-def get_ingestion_service(db: Session = Depends(get_db)) -> IngestionService:
-    """Get IngestionService instance."""
-    return IngestionService(db)
-
 # Singleton instances
 _embedding_service: Optional[EmbeddingService] = None
 _vector_store: Optional[BaseVectorStore] = None
@@ -97,7 +93,7 @@ def get_embedding_service() -> EmbeddingService:
 def get_vector_store() -> BaseVectorStore:
     global _vector_store
     if _vector_store is None:
-        logger.info("Initializing Global FAISS Vector Store...")
+        logger.info("Initializing Global Vector Store...")
         settings = get_settings()
         if settings.vector_index_type.value == "milvus":
              from app.infrastructure.vector_store.milvus_store import MilvusVectorStore
@@ -110,6 +106,19 @@ def get_vector_store() -> BaseVectorStore:
              # Defaulting to Milvus if allowed, or raising error
              raise NotImplementedError("FAISS support removed. Please configure Milvus.")
     return _vector_store
+
+def get_ingestion_service(
+    db: Session = Depends(get_db),
+    # Inject Singletons to prevent creating new connections per request
+    embedding_service: EmbeddingService = Depends(get_embedding_service),
+    vector_store: BaseVectorStore = Depends(get_vector_store)
+) -> IngestionService:
+    """Get IngestionService instance via DI."""
+    return IngestionService(
+        db, 
+        embedding_service=embedding_service,
+        vector_store=vector_store
+    )
 
 def get_rag_service(db: Session = Depends(get_db)) -> RAGService:
     """Get RAGService instance using Singletons."""

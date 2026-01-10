@@ -1,8 +1,9 @@
-
 from typing import List, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
+from pydantic import BaseModel, Field, field_validator
+from loguru import logger
 
 from app.core.database import get_db
 from app.application.api import deps
@@ -11,8 +12,15 @@ from app.domain.models import Department, User, UserRole
 router = APIRouter()
 
 class DepartmentCreate(BaseModel):
-    name: str
+    name: str = Field(..., min_length=2, max_length=100, description="Department name")
     description: str | None = None
+    
+    @field_validator('name')
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Name cannot be empty or whitespace only")
+        return v.strip()
 
 class DepartmentResponse(BaseModel):
     id: int
@@ -24,13 +32,15 @@ class DepartmentResponse(BaseModel):
 
 @router.get("/", response_model=List[DepartmentResponse])
 def list_departments(
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
     current_user: User = Depends(deps.get_current_user)
 ) -> Any:
     """
-    List all departments.
+    List all departments (Paginated).
     """
-    return db.query(Department).all()
+    return db.query(Department).offset(skip).limit(limit).all()
 
 @router.post("/", response_model=DepartmentResponse, status_code=status.HTTP_201_CREATED)
 def create_department(
@@ -52,20 +62,34 @@ def create_department(
             detail="Only administrators can create departments"
         )
         
-    # Check duplicate
-    existing = db.query(Department).filter(Department.name == dept_in.name).first()
-    if existing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Department '{dept_in.name}' already exists"
+    try:
+        # Check duplicate (Explicit check first for better UX)
+        existing = db.query(Department).filter(Department.name == dept_in.name).first()
+        if existing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Department '{dept_in.name}' already exists"
+            )
+            
+        dept = Department(
+            name=dept_in.name,
+            description=dept_in.description
         )
+        db.add(dept)
+        db.commit()
+        db.refresh(dept)
         
-    dept = Department(
-        name=dept_in.name,
-        description=dept_in.description
-    )
-    db.add(dept)
-    db.commit()
-    db.refresh(dept)
-    
-    return dept
+        logger.info(f"Department '{dept.name}' created by user {current_user.id}")
+        return dept
+        
+    except IntegrityError:
+        db.rollback()
+        logger.warning(f"Duplicate department creation attempt: {dept_in.name}")
+        raise HTTPException(
+            status_code=409,
+            detail=f"Department '{dept_in.name}' already exists (Constraint Violation)"
+        )
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error creating department: {e}")
+        raise HTTPException(status_code=500, detail="Internal System Error")

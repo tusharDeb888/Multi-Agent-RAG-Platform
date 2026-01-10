@@ -24,7 +24,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     answer: str
-    citations: list
+    citations: List[dict]
     metadata: dict
 
 @router.post("/query", response_model=ChatResponse)
@@ -40,18 +40,23 @@ async def chat_query(
     Query the knowledge base using RAG.
     """
     try:
+        # Determine Admin Status for Bypass
+        user_roles = [r.role.name for r in current_user.roles]
+        is_admin = "super_admin" in user_roles or "department_admin" in user_roles
+        
         # Execute query
-        logger.debug("Calling rag_service.query")
+        logger.debug(f"Calling rag_service.query (Admin Bypass: {is_admin})")
         result = await rag_service.query(
             user_id=current_user.id,
             query=body.query,
-            top_k=body.top_k
+            top_k=body.top_k,
+            bypass_relevance_check=is_admin
         )
         logger.debug("rag_service.query returned")
         
-        # Log audit
-        logger.debug("Calling audit_service.log_query")
-        audit_service.log_query(
+        # Log audit (Async to avoid blocking)
+        logger.debug("Calling audit_service.log_query_async")
+        await audit_service.log_query_async(
             user_id=current_user.id,
             query_text=body.query,
             response_text=result["answer"],
@@ -65,13 +70,15 @@ async def chat_query(
             "metadata": {
                 "chunks_retrieved": result.get("chunks_retrieved", 0),
                 "chunks_after_filtering": result.get("chunks_after_filtering", 0),
-                "model_name": result.get("model_name", "unknown")
+                "model_name": result.get("model_name", "unknown"),
+                "performance_metrics": result.get("metrics", {})
             }
         }
         
     except Exception as e:
-        logger.error(f"Error in chat_query: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error in chat_query: {str(e)}", exc_info=True)
+        # PROD FIX: Do not leak exception details to user
+        raise HTTPException(status_code=500, detail="Internal System Error")
 
 @router.post("/stream")
 @limiter.limit("20/minute")
@@ -92,10 +99,15 @@ async def chat_stream(
         captured_citations = []
         
         try:
+            # Determine Admin Status for Bypass
+            user_roles = [r.role.name for r in current_user.roles]
+            is_admin = "super_admin" in user_roles or "department_admin" in user_roles
+            
             async for chunk in rag_service.stream_query(
                 user_id=current_user.id,
                 query=body.query,
-                top_k=body.top_k
+                top_k=body.top_k,
+                bypass_relevance_check=is_admin
             ):
                 # Analyze chunk to capture data
                 try:
@@ -123,11 +135,9 @@ async def chat_stream(
             response_text = "".join(full_response)
             accessed_ids = [c["document_id"] for c in captured_citations]
             
-            # Log to Audit Service (using sync wrapper or ensure service handles it)
-            # Since audit_log is synchronous db operation, we can call it directly
-            # but ideally should be in threadpool if it blocks. 
-            # audit_service uses sync session.
-            audit_service.log_query(
+            # Log to Audit Service (Async)
+            # We must use await here inside the async wrapper
+            await audit_service.log_query_async(
                 user_id=current_user.id,
                 query_text=body.query,
                 response_text=response_text,
@@ -137,12 +147,16 @@ async def chat_stream(
         except Exception as e:
             logger.error(f"Stream interrupted: {e}")
             # Try to log partial if possible
-            audit_service.log_query(
-                user_id=current_user.id,
-                query_text=body.query,
-                response_text="".join(full_response) + f" [ERROR: {str(e)}]",
-                accessed_document_ids=[]
-            )
+            # Try to log partial if possible (Async)
+            try:
+                await audit_service.log_query_async(
+                    user_id=current_user.id,
+                    query_text=body.query,
+                    response_text="".join(full_response) + f" [ERROR: {str(e)}]",
+                    accessed_document_ids=[]
+                )
+            except Exception as log_err:
+                logger.error(f"Failed to log partial stream error: {log_err}")
             # Re-raise to close stream to client
             raise e
 
@@ -171,10 +185,10 @@ async def get_history(
             {
                 "query": h.query_text,
                 "timestamp": h.timestamp,
-                "response_snippet": h.response_text[:200] + "..." if h.response_text and len(h.response_text) > 200 else h.response_text
+                "response_snippet": (h.response_text[:200] + "...") if h.response_text and len(h.response_text) > 200 else (h.response_text or "")
             }
             for h in history
         ]
     except Exception as e:
         logger.error(f"Error retrieving history: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal System Error")

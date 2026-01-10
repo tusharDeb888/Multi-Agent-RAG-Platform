@@ -51,12 +51,19 @@ def client(db) -> Generator[TestClient, None, None]:
 @pytest.fixture(scope="function")
 def test_user(db) -> User:
     """Create a test user."""
+    # Create valid department
+    from app.domain.models import Department
+    dept = Department(name="IT", description="Test Dept")
+    db.add(dept)
+    db.commit()
+    db.refresh(dept)
+    
     user = User(
         username="testuser",
         email="test@example.com",
         hashed_password=get_password_hash("testpass"),
         full_name="Test User",
-        department="IT",
+        department=dept, # Assign object
         is_active=True
     )
     db.add(user)

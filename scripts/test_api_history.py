@@ -1,9 +1,11 @@
 import requests
 import sys
 
+import os
+
 BASE_URL = "http://localhost:8000/api/v1"
 USERNAME = "admin"
-PASSWORD = "admin_password"  # Assuming this from seed_db, will check
+PASSWORD = os.getenv("TEST_PASSWORD", "admin")
 
 def get_token():
     url = f"{BASE_URL}/auth/login"

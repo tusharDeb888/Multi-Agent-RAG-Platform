@@ -87,7 +87,10 @@ const UploadForm = ({ onUploadSuccess, departments = [], onDepartmentCreated }) 
     const handleAddDepartment = async () => {
         if (!newDeptName.trim()) return;
         try {
-            const newDept = await departmentService.createDepartment({ name: newDeptName });
+            const newDept = await departmentService.createDepartment({
+                name: newDeptName,
+                description: `Department for ${newDeptName}`
+            });
 
             // 1. Notify parent to refresh global state
             if (onDepartmentCreated) {
@@ -104,7 +107,8 @@ const UploadForm = ({ onUploadSuccess, departments = [], onDepartmentCreated }) 
             setShowAddDept(false);
         } catch (err) {
             console.error(err);
-            setError('Failed to create department');
+            const msg = err.response?.data?.detail || 'Failed to create department';
+            setError(msg);
         }
     };
 
@@ -161,7 +165,7 @@ const UploadForm = ({ onUploadSuccess, departments = [], onDepartmentCreated }) 
                 )}
 
                 <div
-                    className="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center hover:border-blue-500 hover:bg-blue-50 transition-all cursor-pointer group"
+                    className="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center hover:border-orange-500 hover:bg-orange-50 transition-all cursor-pointer group"
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={handleDrop}
                     onClick={() => fileInputRef.current?.click()}
@@ -194,11 +198,11 @@ const UploadForm = ({ onUploadSuccess, departments = [], onDepartmentCreated }) 
                         <div className="p-6 space-y-6">
 
                             {/* File Info */}
-                            <div className="flex items-center p-3 bg-blue-50 rounded-lg border border-blue-100">
-                                <File className="h-8 w-8 text-blue-600 mr-3" />
+                            <div className="flex items-center p-3 bg-orange-50 rounded-lg border border-orange-100">
+                                <File className="h-8 w-8 text-orange-600 mr-3" />
                                 <div className="overflow-hidden">
-                                    <p className="font-medium text-blue-900 truncate">{file?.name}</p>
-                                    <p className="text-xs text-blue-700">{(file?.size / 1024 / 1024).toFixed(2)} MB</p>
+                                    <p className="font-medium text-orange-900 truncate">{file?.name}</p>
+                                    <p className="text-xs text-orange-700">{(file?.size / 1024 / 1024).toFixed(2)} MB</p>
                                 </div>
                             </div>
 
@@ -210,7 +214,7 @@ const UploadForm = ({ onUploadSuccess, departments = [], onDepartmentCreated }) 
                                     value={title}
                                     onChange={(e) => setTitle(e.target.value)}
                                     placeholder="Enter a descriptive title..."
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
                                     autoFocus
                                 />
                             </div>
@@ -228,13 +232,13 @@ const UploadForm = ({ onUploadSuccess, departments = [], onDepartmentCreated }) 
                                     {selectedDepts.map(deptName => (
                                         <span
                                             key={deptName}
-                                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800 border border-blue-200"
+                                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-orange-100 text-orange-800 border border-orange-200"
                                         >
                                             {deptName}
                                             <button
                                                 type="button"
                                                 onClick={() => toggleDepartment(deptName)}
-                                                className="ml-1.5 inline-flex items-center justify-center text-blue-400 hover:text-blue-600 focus:outline-none"
+                                                className="ml-1.5 inline-flex items-center justify-center text-orange-400 hover:text-orange-600 focus:outline-none"
                                             >
                                                 <X className="h-3 w-3" />
                                             </button>
@@ -246,7 +250,7 @@ const UploadForm = ({ onUploadSuccess, departments = [], onDepartmentCreated }) 
                                 <div className="flex gap-2">
                                     <div className="relative flex-1">
                                         <select
-                                            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                                            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm rounded-md"
                                             onChange={(e) => {
                                                 if (e.target.value) {
                                                     toggleDepartment(e.target.value);
@@ -271,7 +275,7 @@ const UploadForm = ({ onUploadSuccess, departments = [], onDepartmentCreated }) 
                                         <button
                                             type="button"
                                             onClick={() => setShowAddDept(true)}
-                                            className="inline-flex items-center px-3 py-2 border border-blue-300 shadow-sm text-sm leading-4 font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                            className="inline-flex items-center px-3 py-2 border border-orange-300 shadow-sm text-sm leading-4 font-medium rounded-md text-orange-700 bg-white hover:bg-orange-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
                                         >
                                             <Plus className="h-4 w-4 mr-1" />
                                             New
@@ -287,19 +291,19 @@ const UploadForm = ({ onUploadSuccess, departments = [], onDepartmentCreated }) 
                                             value={newDeptName}
                                             onChange={(e) => setNewDeptName(e.target.value)}
                                             placeholder="Department Name"
-                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
                                             onKeyDown={(e) => e.key === 'Enter' && handleAddDepartment()}
                                             autoFocus
                                         />
                                         <button
                                             onClick={handleAddDepartment}
-                                            className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                            className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
                                         >
                                             Add
                                         </button>
                                         <button
                                             onClick={() => setShowAddDept(false)}
-                                            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                                            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
                                         >
                                             Cancel
                                         </button>
@@ -328,7 +332,7 @@ const UploadForm = ({ onUploadSuccess, departments = [], onDepartmentCreated }) 
                             <button
                                 onClick={handleUpload}
                                 disabled={uploading || !title}
-                                className="flex items-center px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-md transition-all hover:shadow-lg"
+                                className="flex items-center px-6 py-2 bg-gradient-to-r from-orange-600 to-orange-700 text-white font-medium rounded-lg hover:from-orange-700 hover:to-orange-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-md transition-all hover:shadow-lg"
                             >
                                 {uploading ? (
                                     <>

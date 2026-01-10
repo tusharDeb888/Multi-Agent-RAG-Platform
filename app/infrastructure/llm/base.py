@@ -3,7 +3,7 @@ Base LLM interface following Interface Segregation Principle.
 All LLM implementations must adhere to this contract.
 """
 from abc import ABC, abstractmethod
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, AsyncIterator, Any
 from pydantic import BaseModel
 
 
@@ -15,6 +15,10 @@ class LLMRequest(BaseModel):
     temperature: Optional[float] = None
     stop_sequences: Optional[List[str]] = None
     system_prompt: Optional[str] = None
+    # [Deep Audit Fix] Multi-modal & Tool Support
+    images: Optional[List[str]] = None # Base64 strings or URLs
+    tools: Optional[List[Dict[str, Any]]] = None # Function calling definitions
+    response_format: Optional[str] = None # e.g. "json" for constrained output
 
 
 class LLMResponse(BaseModel):
@@ -32,9 +36,9 @@ class BaseLLMAdapter(ABC):
     """
     
     @abstractmethod
-    def generate(self, request: LLMRequest) -> LLMResponse:
+    async def generate(self, request: LLMRequest) -> LLMResponse:
         """
-        Generate text from the LLM.
+        Generate text from the LLM asynchronously.
         
         Args:
             request: LLM request with prompt and parameters
@@ -45,15 +49,17 @@ class BaseLLMAdapter(ABC):
         pass
 
     @abstractmethod
-    def stream(self, request: LLMRequest) -> "Iterator[str]":
+    async def stream(self, request: LLMRequest) -> "AsyncIterator[LLMResponse]":
         """
-        Stream generated text from the LLM.
+        Stream generated text from the LLM asynchronously.
+        Yields LLMResponse objects (delta text). 
+        Final chunk may contain usage stats.
         
         Args:
             request: LLM request with prompt and parameters
             
         Yields:
-             Generated text chunks
+             LLMResponse objects
         """
         pass
     
@@ -78,8 +84,8 @@ class BaseLLMAdapter(ABC):
         pass
     
     @abstractmethod
-    def cleanup(self) -> None:
-        """Clean up resources."""
+    async def cleanup(self) -> None:
+        """Clean up resources asynchronously."""
         pass
 
 

@@ -6,15 +6,16 @@ FROM python:3.13-slim
 # magic/libmagic for python-magic (if we revert to it), but we use puremagic now.
 # curl/wget for healthchecks.
 RUN apt-get update && apt-get install -y \
-    build-essential \
-    libaio1 \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+  build-essential \
+  libaio1t64 \
+  curl \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # Copy requirements first for caching
-COPY requirements.txt .
+# Copy requirements first for caching
+COPY requirements-prod.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code

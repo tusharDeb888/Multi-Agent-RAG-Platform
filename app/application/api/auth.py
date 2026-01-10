@@ -39,7 +39,7 @@ def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
         
-    if not user.is_active:
+    if not user.is_active or user.is_deleted:
         raise HTTPException(status_code=400, detail="Inactive user")
         
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)

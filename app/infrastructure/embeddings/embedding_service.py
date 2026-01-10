@@ -35,8 +35,10 @@ class EmbeddingService:
         self._initialized = True
     
     def _load_model(self) -> None:
-        """Load the embedding model."""
+        """Load the embedding model with Device Acceleration."""
         try:
+            import torch
+            
             # Use a model that matches vector_dimension
             # For 384 dimensions, use all-MiniLM-L6-v2
             # For 768 dimensions, use all-mpnet-base-v2
@@ -49,8 +51,15 @@ class EmbeddingService:
                 model_name = "sentence-transformers/all-MiniLM-L6-v2"
                 logger.warning(f"Using default model for dimension {self.settings.vector_dimension}")
             
-            logger.info(f"Loading embedding model: {model_name}")
-            self.model = SentenceTransformer(model_name)
+            # Device Selection
+            device = "cpu"
+            if torch.cuda.is_available():
+                device = "cuda"
+            elif torch.backends.mps.is_available():
+                device = "mps"
+                
+            logger.info(f"Loading embedding model: {model_name} on DEVICE={device}")
+            self.model = SentenceTransformer(model_name, device=device)
             logger.info("Embedding model loaded successfully")
             
         except Exception as e:

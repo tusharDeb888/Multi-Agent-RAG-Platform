@@ -22,11 +22,11 @@ class LLMProvider(str, Enum):
     LLAMA2 = "llama2"
     QWEN = "qwen"
     CUSTOM = "custom"
+    OLLAMA = "ollama"
 
 
 class VectorIndexType(str, Enum):
     """Vector index types."""
-    FAISS = "faiss"
     ORACLE_VECTOR = "oracle_vector"
     MILVUS = "milvus"
 
@@ -56,23 +56,35 @@ class Settings(BaseSettings):
     custom_database_url: Optional[str] = Field(default=None)
     
     # LLM Configuration
-    llm_provider: LLMProvider = Field(default=LLMProvider.LLAMA_3_2)
+    llm_provider: LLMProvider = Field(default=LLMProvider.LOCAL)
     llm_model_path: str = Field(default="./models/llama-3.2-3b-instruct-quantized.gguf")
     llm_quantization: str = Field(default="4bit")
     llm_context_length: int = Field(default=4096, ge=512, le=131072)
     llm_temperature: float = Field(default=0.1, ge=0.0, le=2.0)
     llm_max_tokens: int = Field(default=512, ge=1, le=4096)
+
+    # Lazy Loading Configuration
+    lazy_load_llm: bool = Field(default=False, description="Load LLM only on demand to save VRAM")
+    llm_idle_timeout: int = Field(default=60, ge=0, description="Seconds before unloading idle LLM (0 for immediate, -1 for never)")
     
     # Vector Search
     vector_dimension: int = Field(default=384, ge=128, le=4096)
-    vector_index_type: VectorIndexType = Field(default=VectorIndexType.FAISS)
-    faiss_index_path: str = Field(default="./data/faiss_index")
+    vector_index_type: VectorIndexType = Field(default=VectorIndexType.MILVUS)
+    index_storage_path: str = Field(default="./data/vector_index")
+    bm25_index_path: str = Field(default="./data/vector_index.bm25_index")
+    splade_index_path: str = Field(default="./data/vector_index.splade_index")
+    splade_model_name: str = Field(default="naver/splade-cocondenser-ensembledistil")
+    enable_splade: bool = Field(default=True)
     milvus_conn_uri: str = Field(default="http://localhost:19530")
     milvus_token: str = Field(default="") # For RBAC enabled Milvus
     
+    # Embeddings
+    embedding_device: str = Field(default="cpu", description="Device for embedding model (cpu, cuda, mps)")
+    
     # Vision Configuration
-    vision_provider: str = Field(default="ollama", pattern="^(ollama|local)$") 
+    vision_provider: str = Field(default="ollama", pattern="^(ollama|local|vllm)$") 
     ollama_base_url: str = Field(default="http://localhost:11434")
+    vllm_base_url: str = Field(default="http://vllm:8000/v1")
     vision_model_name: str = Field(default="moondream") # Efficient vision model
     vision_model_path: str = Field(default="./models/llava-v1.5-7b-Q4_K.gguf") # For local provider fallback
 
@@ -96,7 +108,10 @@ class Settings(BaseSettings):
     @field_validator("backend_cors_origins", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Any) -> Any:
-        if isinstance(v, str) and not v.startswith("["):
+        if isinstance(v, str):
+            if v.startswith("["):
+                import json
+                return json.loads(v)
             return [i.strip() for i in v.split(",")]
         elif isinstance(v, (list, str)):
             return v
@@ -104,23 +119,25 @@ class Settings(BaseSettings):
     
     # Document Processing
     max_document_size_mb: int = Field(default=500, ge=1, le=5000)
-    chunk_size: int = Field(default=500, ge=100, le=5000)
-    chunk_overlap: int = Field(default=50, ge=0, le=1000)
+    chunk_size: int = Field(default=1000, ge=100, le=5000)
+    chunk_overlap: int = Field(default=200, ge=0, le=1000)
     enable_ocr: bool = Field(default=True)
     
     # Caching
     cache_dir: str = Field(default="./data/cache")
     redis_url: str = Field(default="redis://localhost:6379/0")
+    rate_limit_default: str = Field(default="100/minute", description="Default rate limit (e.g., '100/minute')")
     
     # Performance
     ingestion_workers: int = Field(default=4, ge=1, le=32)
     retrieval_top_k: int = Field(default=5, ge=1, le=50)
     rag_context_chunks: int = Field(default=3, ge=1, le=10)
     rerank_top_k: int = Field(default=20, ge=1, le=100)
-    expansion_threshold: int = Field(default=8, ge=0, le=50)
+    expansion_threshold: int = Field(default=20, ge=0, le=50)
+    enable_query_expansion: bool = Field(default=True, description="Enable HyDE/Query Expansion")
     
     # Audit
-    audit_log_path: str = Field(default="audit.log")
+    audit_log_path: str = Field(default="./data/audit.log")
     audit_retention_days: int = Field(default=365, ge=1, le=3650)
     enable_audit_logging: bool = Field(default=True)
     

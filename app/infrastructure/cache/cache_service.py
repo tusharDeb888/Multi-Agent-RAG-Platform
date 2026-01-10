@@ -104,6 +104,22 @@ class CacheService:
             logger.error(f"Error setting cache: {e}")
             return False
             
+    async def get_async(self, key: str) -> Optional[Any]:
+        """
+        Get value from cache asynchronously (non-blocking).
+        """
+        import asyncio
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.get, key)
+
+    async def set_async(self, key: str, value: Any, ttl: Optional[float] = None) -> bool:
+        """
+        Set value in cache asynchronously (non-blocking).
+        """
+        import asyncio
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.set, key, value, ttl)
+            
     def generate_key(self, prefix: str, *args, **kwargs) -> str:
         """
         Generate a deterministic cache key.
@@ -144,22 +160,31 @@ class CacheService:
         count = 0
         try:
             if self.redis_client:
-                # Redis Scan & Delete
-                cursor = '0'
-                while cursor != 0:
-                    cursor, keys = self.redis_client.scan(cursor=cursor, match=pattern, count=100)
-                    if keys:
-                        self.redis_client.delete(*keys)
-                        count += len(keys)
-                        logger.info(f"Invalidated {len(keys)} keys matching '{pattern}'")
+                # Redis Scan & Delete (Using scan_iter to avoid cursor type bugs)
+                # scan_iter handles the cursor loop internally and safely
+                batch = []
+                for key in self.redis_client.scan_iter(match=pattern, count=100):
+                    batch.append(key)
+                    if len(batch) >= 100:
+                        self.redis_client.delete(*batch)
+                        count += len(batch)
+                        batch = []
+                
+                # Delete remaining
+                if batch:
+                    self.redis_client.delete(*batch)
+                    count += len(batch)
+                    
+                if count > 0:
+                     logger.info(f"Invalidated {count} keys matching '{pattern}' (Redis)")
+
             else:
                 # DiskCache
-                # DiskCache doesn't support easy pattern matching without iteration
-                # We iterate roughly
-                # Note: This might be slow for large caches
+                # [Fix] Use fnmatch for correct glob behavior
+                import fnmatch
                 keys_to_delete = []
                 for key in self.disk_cache:
-                    if pattern.replace('*', '') in key: # Simple substring match for fallback
+                    if fnmatch.fnmatch(key, pattern):
                          keys_to_delete.append(key)
                 
                 for k in keys_to_delete:

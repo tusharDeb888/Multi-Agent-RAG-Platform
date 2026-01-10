@@ -1,15 +1,15 @@
 """
 Text Splitter.
-Splits text into chunks recursively using separators.
+Splits text into chunks using semantic sentence boundaries.
 """
 from typing import List, Optional
+import re
 
 class RecursiveCharacterTextSplitter:
     """
     Splits text recursively by trying separators in order.
-    Inspired by LangChain's RecursiveCharacterTextSplitter.
+    Legacy support.
     """
-    
     def __init__(
         self,
         separators: Optional[List[str]] = None,
@@ -24,101 +24,102 @@ class RecursiveCharacterTextSplitter:
         
     def split_text(self, text: str) -> List[str]:
         """
-        Split text into chunks.
-        
-        Args:
-            text: Text to split
-            
-        Returns:
-            List of text chunks
+        [Fix] Delegate to SemanticSplitter for better chunking quality.
+        Legacy method preserved for backward compatibility.
         """
-        final_chunks = []
+        semantic_splitter = SemanticSplitter(
+            chunk_size=self.chunk_size,
+            chunk_overlap=self.chunk_overlap
+        )
+        return semantic_splitter.split_text(text)
+
+class SemanticSplitter:
+    """
+    Splits text by preserving sentence boundaries.
+    Uses regex to identify sentences and groups them into chunks.
+    """
+    
+    def __init__(
+        self,
+        chunk_size: int = 1000,
+        chunk_overlap: int = 200,
+        min_chunk_size: int = 50
+    ):
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+        self.min_chunk_size = min_chunk_size
         
-        # Get appropriate separator
-        separator = self.separators[-1]
-        for s in self.separators:
-            if s == "":
-                separator = s
-                break
-            if s in text:
-                separator = s
-                break
-                
-        # Split
-        if separator:
-            splits = text.split(separator)
-        else:
-            splits = list(text) # Split by character
-            
-        # Merge splits
-        info_splits = []
+    def _split_sentences(self, text: str) -> List[str]:
+        """
+        Split text into sentences using robust regex.
+        Handles commonly abbreviated titles (Mr., Dr., etc.)
+        """
+        # Regex breakdown:
+        # (?<!\w\.\w.) - Negative lookbehind for E.g.
+        # (?<![A-Z][a-z]\.) - Negative lookbehind for titles like Mr.
+        # (?<=\.|\?|\!) - Positive lookbehind for sentence enders
+        # \s+ - whitespace
+        # (?=[A-Z]) - Positive lookahead for capital letter
+        
+        # Simplified robust pattern (covers most cases)
+        split_pattern = r'(?<!\b(?:Mr|Ms|Dr|Sr|Jr|vs|ex)\.)(?<!\bMrs\.)(?<!\bProf\.)(?<=\.|\?|\!)\s+(?=[A-Z0-9])'
+        
+        # Split and keep standard structure
+        sentences = re.split(split_pattern, text)
+        return [s.strip() for s in sentences if s.strip()]
+
+    def split_text(self, text: str) -> List[str]:
+        """
+        Segment text into semantic chunks.
+        """
+        sentences = self._split_sentences(text)
+        chunks = []
         current_chunk = []
         current_length = 0
         
-        for split in splits:
-            split_len = self.length_function(split)
+        for sentence in sentences:
+            sent_len = len(sentence)
             
-            # If a single split is too large, recurse on it (unless we are at innermost separator)
-            if split_len > self.chunk_size:
-                    # Flush current chunk before adding recursion results
-                    if current_chunk:
-                        doc = separator.join(current_chunk)
-                        if doc.strip():
-                            final_chunks.append(doc)
-                        current_chunk = []
-                        current_length = 0
-                    
-                    # Recurse
-                    next_separators = self.separators[self.separators.index(separator) + 1:]
-                    recursive_splitter = RecursiveCharacterTextSplitter(
-                        separators=next_separators,
-                        chunk_size=self.chunk_size,
-                        chunk_overlap=self.chunk_overlap,
-                        length_function=self.length_function
-                    )
-                    sub_splits = recursive_splitter.split_text(split)
-                    final_chunks.extend(sub_splits)
-                    continue
-            
-            # Add separator back if needed (except for empty separator)
-            if separator and len(info_splits) > 0: # Not the first one
-                 # This logic is simplified; LangChain handles "keep_separator" more robustly
-                 pass 
-
-            if current_length + split_len + (len(separator) if current_chunk else 0) > self.chunk_size:
-                # Chunk is full
+            # If a single sentence is bigger than chunk_size, we MUST hard split it
+            if sent_len > self.chunk_size:
+                # Flush current
                 if current_chunk:
-                    doc = separator.join(current_chunk)
-                    if doc.strip():
-                        final_chunks.append(doc)
-                    
-                    # Handle overlap 
-                    # Simplification: keep last few items that fit in overlap
-                    # For strict correctness, we'd need deque logic.
-                    # Here we incorrectly just start new. 
-                    # Fixing overlap logic:
-                    
-                    overlap_chunk = []
-                    overlap_len = 0
-                    # Walk backwards
-                    for i in range(len(current_chunk) - 1, -1, -1):
-                        item = current_chunk[i]
-                        item_len = self.length_function(item)
-                        if overlap_len + item_len < self.chunk_overlap:
-                            overlap_chunk.insert(0, item)
-                            overlap_len += item_len + len(separator)
-                        else:
-                            break
-                            
-                    current_chunk = overlap_chunk
-                    current_length = overlap_len
-            
-            current_chunk.append(split)
-            current_length += split_len + (len(separator) if len(current_chunk) > 1 else 0)
-            
-        if current_chunk:
-            doc = separator.join(current_chunk)
-            if doc.strip():
-                final_chunks.append(doc)
+                    chunks.append(" ".join(current_chunk))
+                    current_chunk = []
+                    current_length = 0
                 
-        return final_chunks
+                # [Fix] Guard against infinite loop if chunk_size <= chunk_overlap
+                step = max(1, self.chunk_size - self.chunk_overlap)
+                for i in range(0, sent_len, step):
+                    chunks.append(sentence[i : i + self.chunk_size])
+                continue
+
+            # Check if adding this sentence exceeds chunk size
+            if current_length + sent_len + 1 > self.chunk_size:
+                # Finish current chunk
+                chunk_text = " ".join(current_chunk)
+                chunks.append(chunk_text)
+                
+                # Handle Overlap: Keep sentences from end of current_chunk
+                # that fit within overlap size
+                overlap_buffer = []
+                overlap_len = 0
+                for s in reversed(current_chunk):
+                    if overlap_len + len(s) < self.chunk_overlap:
+                        overlap_buffer.insert(0, s)
+                        overlap_len += len(s) + 1
+                    else:
+                        break
+                
+                current_chunk = list(overlap_buffer)
+                current_length = overlap_len
+            
+            current_chunk.append(sentence)
+            current_length += sent_len + 1 # +1 for space
+            
+        # Final flush
+        if current_chunk:
+            chunks.append(" ".join(current_chunk))
+        
+        # [Fix] Filter out chunks smaller than min_chunk_size
+        return [c for c in chunks if len(c) >= self.min_chunk_size]

@@ -10,3 +10,5 @@ api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(chat.router, prefix="/chat", tags=["chat"])
 api_router.include_router(documents.router, prefix="/documents", tags=["documents"])
 api_router.include_router(departments.router, prefix="/departments", tags=["departments"])
+from app.application.api import health
+api_router.include_router(health.router, tags=["health"])

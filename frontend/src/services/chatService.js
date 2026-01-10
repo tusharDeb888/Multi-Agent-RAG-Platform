@@ -11,7 +11,8 @@ const sendQuery = async (query, topK = 5) => {
 const streamQuery = async (query, onChunk, onComplete, onError, topK = 5) => {
     try {
         const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:8000/api/v1/chat/stream', {
+        const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
+        const response = await fetch(`${API_URL}/chat/stream`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -24,6 +25,13 @@ const streamQuery = async (query, onChunk, onComplete, onError, topK = 5) => {
         });
 
         if (!response.ok) {
+            if (response.status === 401) {
+                // Handle unauthorized access (expired token)
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                window.location.href = '/login'; // Force redirect
+                throw new Error('Session expired. Please login again.');
+            }
             throw new Error(`HTTP error! status: ${response.status}`);
         }
 

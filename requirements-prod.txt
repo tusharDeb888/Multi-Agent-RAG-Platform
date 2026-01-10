@@ -1,0 +1,66 @@
+# Application Server
+fastapi==0.127.0
+uvicorn==0.40.0
+pydantic==2.12.5
+pydantic-settings==2.12.0
+python-dotenv==1.2.1
+python-multipart==0.0.21
+requests==2.32.5
+httpx==0.28.1
+slowapi==0.1.9
+uvloop==0.22.1
+httptools==0.7.1
+
+# Database & Storage
+sqlalchemy==2.0.45
+oracledb==3.4.1
+pymilvus>=2.4.0
+milvus-lite>=2.4.0
+redis==7.1.0
+alembic==1.17.2
+
+# Observability
+loguru==0.7.3
+prometheus_client==0.23.1
+tenacity==9.1.2
+
+# Security
+python-jose==3.5.0
+passlib==1.7.4
+bcrypt==4.0.1
+cryptography==46.0.3
+
+# Document Processing
+pdfplumber==0.11.8
+python-docx==1.2.0
+python-pptx>=0.6.23
+# OCR: PaddleOCR (replaces pytesseract for better accuracy)
+paddlepaddle==3.2.2  # CPU version for Mac M2 compatibility
+# opencv-python-headless is usually pulled by paddleocr, but we ensure no conflicts here
+opencv-python-headless==4.10.0.84
+pytesseract==0.3.13  # Fallback OCR for Mac/Stability
+
+puremagic==1.30
+python-magic==0.4.27
+
+# RAG & ML (Core Inference)
+sentence-transformers==5.2.0
+torch==2.9.1
+transformers==4.57.3
+numpy==1.26.4
+scikit-learn==1.8.0
+rank_bm25==0.2.2
+annotated-doc==0.0.4
+llama-cpp-python>=0.3.0
+
+# Utilities
+click==8.3.1
+joblib==1.5.3
+tqdm==4.67.1
+anyio==4.12.0
+h11==0.16.0
+idna==3.11
+regex==2025.11.3
+six==1.17.0
+typing-extensions==4.15.0
+wrapt==2.0.1

@@ -44,7 +44,7 @@ const AdminDashboard = () => {
         fetchDocuments();
         fetchDepartments();
 
-        // Poll for updates every 5 seconds (only if authenticated)
+        // Poll for updates every 2 seconds (only if authenticated)
         const interval = setInterval(() => {
             // Re-check auth before each poll
             if (authService.getToken()) {
@@ -52,7 +52,7 @@ const AdminDashboard = () => {
             } else {
                 clearInterval(interval);
             }
-        }, 5000);
+        }, 2000);
 
         return () => clearInterval(interval);
     }, []);

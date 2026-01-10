@@ -63,3 +63,47 @@ class OllamaVisionAdapter(BaseVisionAdapter):
         except Exception as e:
             logger.error(f"Ollama vision error: {e}")
             return "Error processing image with Ollama."
+
+    def transcribe_image(self, image_data: bytes) -> str:
+        """
+        Extract text using Ollama (OCR).
+        """
+        try:
+            b64_image = base64.b64encode(image_data).decode('utf-8')
+            
+            payload = {
+                "model": self.model_name,
+                "prompt": """Extract ALL text from this image character-by-character.
+Rules:
+- Output ONLY the text you see
+- Preserve line breaks and formatting  
+- Do NOT describe the image
+- Do NOT say "The image shows" or "This appears to be"
+- If it is handwritten, do your best to read it
+- If you cannot read something clearly, skip it
+- If entire image is unreadable, output: [UNREADABLE]
+
+Text:""",
+                "images": [b64_image],
+                "stream": False
+            }
+            
+            logger.info(f"Sending image to Ollama for Transcription ({self.model_name})...")
+            # [Fix] Reduced timeout to 40s to allow fallback execution within ingestion's 60s limit
+            response = requests.post(self.api_url, json=payload, timeout=40)
+            
+            if response.status_code != 200:
+                logger.error(f"Ollama Transcription Error: {response.text}")
+                return ""
+                
+            result = response.json()
+            text = result.get("response", "").strip()
+            
+            if text:
+                 logger.info(f"Image transcribed: {len(text)} chars")
+                 return text
+            return ""
+            
+        except Exception as e:
+            logger.error(f"Ollama transcription error: {e}")
+            return ""

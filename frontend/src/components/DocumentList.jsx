@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Clock, CheckCircle, AlertTriangle, Trash2, Edit2, Save, X } from 'lucide-react';
+import { FileText, Clock, CheckCircle, AlertTriangle, Trash2, Edit2, Save, X, Loader, Database, Cpu } from 'lucide-react';
 import authService from '../services/authService';
 import documentService from '../services/documentService';
 
@@ -37,6 +37,7 @@ const DocumentList = ({ documents, departments = [], onDelete, onUpdate }) => {
 
     const user = authService.getCurrentUser();
     const isAdmin = user?.roles?.includes('super_admin') || user?.roles?.includes('department_admin');
+
     const getStatusBadge = (status) => {
         switch (status) {
             case 'completed':
@@ -52,10 +53,34 @@ const DocumentList = ({ documents, departments = [], onDelete, onUpdate }) => {
                         <Clock className="w-3 h-3 mr-1 animate-pulse" /> Processing
                     </span>
                 );
+            case 'extracting':
+                return (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        <Loader className="w-3 h-3 mr-1 animate-spin" /> Extracting...
+                    </span>
+                );
+            case 'chunking':
+                return (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        <Loader className="w-3 h-3 mr-1 animate-spin" /> Chunking...
+                    </span>
+                );
+            case 'embedding':
+                return (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        <Cpu className="w-3 h-3 mr-1 animate-pulse" /> Embedding...
+                    </span>
+                );
+            case 'indexing':
+                return (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                        <Database className="w-3 h-3 mr-1 animate-pulse" /> Indexing...
+                    </span>
+                );
             case 'partial':
                 return (
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                        <Clock className="w-3 h-3 mr-1 animate-pulse" /> Indexing...
+                        <Clock className="w-3 h-3 mr-1 animate-pulse" /> Finalizing...
                     </span>
                 );
             case 'failed':

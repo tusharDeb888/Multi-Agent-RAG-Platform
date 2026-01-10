@@ -79,6 +79,36 @@ class AuditService:
             self.db.rollback()
             raise
     
+    async def log_query_async(
+        self,
+        user_id: int,
+        query_text: str,
+        response_text: str,
+        accessed_document_ids: List[int],
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None
+    ) -> Optional[AuditLog]:
+        """
+        Log a user query asynchronously.
+        Offloads synchronous DB I/O to a thread.
+        """
+        if not self.settings.enable_audit_logging:
+            return None
+            
+        import asyncio
+        loop = asyncio.get_running_loop()
+        
+        return await loop.run_in_executor(
+            None, 
+            self.log_query, 
+            user_id, 
+            query_text, 
+            response_text, 
+            accessed_document_ids, 
+            ip_address, 
+            user_agent
+        )
+    
     def log_document_access(
         self,
         user_id: int,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { MessageSquare, Calendar, Clock } from 'lucide-react';
-import authService from '../services/authService';
+import api from '../services/api';
+import { Clock, MessageSquare, Calendar } from 'lucide-react';
+
 
 const ChatHistory = () => {
     const [history, setHistory] = useState([]);
@@ -14,10 +14,7 @@ const ChatHistory = () => {
 
     const fetchHistory = async () => {
         try {
-            const token = authService.getToken();
-            const response = await axios.get('http://localhost:8000/api/v1/chat/history', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.get('/chat/history');
             setHistory(response.data);
         } catch (err) {
             setError('Failed to load chat history');
@@ -61,7 +58,7 @@ const ChatHistory = () => {
             </h1>
 
             <div className="space-y-4">
-                {history.length === 0 ? (
+                {!Array.isArray(history) || history.length === 0 ? (
                     <div className="text-center text-gray-500 py-8 bg-white rounded-lg shadow">
                         <MessageSquare className="mx-auto h-12 w-12 text-gray-300 mb-2" />
                         <p>No chat history found.</p>
