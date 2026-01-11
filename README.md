@@ -28,18 +28,6 @@ docker-compose up -d --build
 
 ---
 
-## 📚 Documentation
-
-We have detailed documentation available for every aspect of the project:
-
-| Document | Description | Target Audience |
-| :--- | :--- | :--- |
-| **[Documentation.md](./Documentation.md)** | **User Manual & Overview**. Features, How to Chat, How to Upload. | Users & Admins |
-| **[INSTRUCTION.md](./INSTRUCTION.md)** | **Deployment Guide**. Production setup, CORS, SSL, Local LLMs (Ollama). | DevOps & Leads |
-| **[SYSTEM_ARCHITECTURE.md](./SYSTEM_ARCHITECTURE.md)** | **Technical Deep Dive**. Diagrams, component breakdown, and data flow. | Developers |
-
----
-
 ## 💡 Key Features
 
 *   **Zero-Trust Security**: No data leaves the server. RBAC ensures authorized access only.
