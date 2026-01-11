@@ -16,10 +16,31 @@ const ChatWindow = ({ messages, onSendMessage, onEditMessage, onRegenerate, load
     const [editValue, setEditValue] = useState('');
     const [copiedIndex, setCopiedIndex] = useState(-1); // Track which message was copied
 
-    const handleCopyMsg = (text, index) => {
-        navigator.clipboard.writeText(text);
-        setCopiedIndex(index);
-        setTimeout(() => setCopiedIndex(-1), 2000);
+    const handleCopyMsg = async (text, index) => {
+        if (!text) return;
+
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopiedIndex(index);
+            setTimeout(() => setCopiedIndex(-1), 2000);
+        } catch (err) {
+            console.warn('Clipboard API failed, trying fallback', err);
+            // Fallback for non-secure contexts
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "absolute";
+            textArea.style.left = "-999999px";
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                setCopiedIndex(index);
+                setTimeout(() => setCopiedIndex(-1), 2000);
+            } catch (fallbackErr) {
+                console.error('Fallback copy failed', fallbackErr);
+            }
+            document.body.removeChild(textArea);
+        }
     };
 
     const startEditing = (index, content) => {

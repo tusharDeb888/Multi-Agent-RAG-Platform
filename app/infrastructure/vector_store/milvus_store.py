@@ -52,6 +52,8 @@ class MilvusVectorStore(BaseVectorStore):
         schema.add_field(field_name="id", datatype=DataType.INT64, is_primary=True)
         schema.add_field(field_name="document_id", datatype=DataType.INT64)
         schema.add_field(field_name="embedding", datatype=DataType.FLOAT_VECTOR, dim=self.settings.vector_dimension)
+        # [Enterprise Metadata] Add JSON field for flexible filtering
+        schema.add_field(field_name="metadata", datatype=DataType.JSON)
         
         index_params = self.client.prepare_index_params()
         
@@ -91,9 +93,14 @@ class MilvusVectorStore(BaseVectorStore):
         
         data = []
         for i, vec in enumerate(vectors):
+            # Extract doc_id for top level field, keep rest in metadata JSON
+            meta = metadata[i].copy() if metadata else {}
+            doc_id = meta.pop("document_id", None)
+            
             data.append({
                 "id": ids[i],
-                "document_id": doc_ids[i],
+                "document_id": doc_id, # Required top-level
+                "metadata": meta,      # Flexible remainder (Year, Dept, etc)
                 "embedding": vec.tolist()
             })
         
@@ -109,25 +116,32 @@ class MilvusVectorStore(BaseVectorStore):
             logger.error(f"Milvus Insert Failed: {e}")
             raise
 
-    async def search(self, query_vector: np.ndarray, top_k: int, filter_ids: Optional[List[int]] = None) -> List[Tuple[int, float]]:
+    async def search(self, query_vector: np.ndarray, top_k: int, filter_ids: Optional[List[int]] = None, metadata_filter: Optional[dict] = None) -> List[Tuple[int, float]]:
         """
-        Search with strict RBAC filtering asynchronously.
+        Search with strict RBAC filtering and optional Metadata Filtering.
         """
         # 1. Zero-Trust Short Circuit
         if filter_ids is not None and len(filter_ids) == 0:
             logger.warning("Milvus Search Blocked: User has 0 accessible documents.")
             return []
                 
-        # 2. Construct Filter
-        filter_str = ""
-        if filter_ids:
-            # Determine if list is small enough for IN clause, else might need temp partition?
-            # For now, standard IN clause is fine for typical RBAC sizes (~100s).
-            # If huge list, Milvus has limits (~16k items in IN).
-            # Future TODO: Handle massive allow-lists via Partition Key or Bitset.
-            filter_str = f"document_id in {str(filter_ids)}"
+        # 2. Construct Filter Expressions
+        expressions = []
         
-        # 3. Search
+        # 2a. RBAC Filter
+        if filter_ids:
+            expressions.append(f"document_id in {str(filter_ids)}")
+            
+        # 2b. Metadata Filter (JSON)
+        # Supports equality: {"year": 2024, "department": "HR"} -> metadata["year"] == 2024
+        if metadata_filter:
+            for key, value in metadata_filter.items():
+                if isinstance(value, str):
+                    expressions.append(f'metadata["{key}"] == "{value}"')
+                else:
+                     expressions.append(f'metadata["{key}"] == {value}')
+        
+        filter_str = " and ".join(expressions) if expressions else ""
         try:
             is_lite = self.settings.milvus_conn_uri.startswith(".") or self.settings.milvus_conn_uri.startswith("/")
             # Enterprise-grade Search Parameters (96% recall)
@@ -138,9 +152,22 @@ class MilvusVectorStore(BaseVectorStore):
             
             # Offload blocking network call
             # [Fix] Handle empty filter string (None instead of "") to avoid Milvus Syntax Error
+            
+            # Prepare data: If numpy, tolist(). If 1D list/array, wrap in list.
+            if isinstance(query_vector, np.ndarray):
+                query_vec_list = query_vector.tolist()
+            else:
+                query_vec_list = query_vector
+                
+            # If input was 1D array (D,), query_vec_list will be [f, f, ...]. Wrap to [[f, f, ...]]
+            if query_vec_list and isinstance(query_vec_list[0], float):
+                data_payload = [query_vec_list]
+            else:
+                data_payload = query_vec_list
+                
             search_kwargs = {
                 "collection_name": self.collection_name,
-                "data": [query_vector],
+                "data": data_payload,
                 "limit": top_k,
                 "output_fields": ["id", "document_id"],
                 "search_params": search_params,

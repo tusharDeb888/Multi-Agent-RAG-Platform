@@ -154,26 +154,7 @@ class RAGService:
         text_lower = text.lower()
         return any(marker in text_lower for marker in refusal_markers)
 
-    def _sanitize_response(self, text: str) -> str:
-        """
-        Handle 'Split Personality' responses where LLM provides an answer 
-        BUT also appends the refusal string (e.g. 'No grounded information...').
-        If substantial valid answer exists, strip the refusal suffix.
-        """
-        refusal_prefix = "No grounded information found in the authorized document"
-        
-        # Check if refusal pattern exists
-        if refusal_prefix in text:
-            parts = text.split(refusal_prefix)
-            valid_content = parts[0].strip()
-            
-            # If we have substantial content (e.g. > 50 chars), assume it's a valid answer
-            # and the refusal was a hallucinated footer or hedging.
-            if len(valid_content) > 50:
-                logger.info("Sanitizer: Detected Mixed Refusal. Stripping refusal suffix and trusting answer.")
-                return valid_content
-                
-        return text
+    # _sanitize_response REMOVED for Zero-Trust compliance
     
     def _normalize_citations(self, text: str, citations: List[Dict]) -> tuple[str, List[Dict]]:
         """
@@ -188,14 +169,15 @@ class RAGService:
         # but citations list passed here is already unique-ified.
         # Let's re-scan text to find order of appearance.
         
-        matches = list(re.finditer(r'\[+(:?ID:?|Doc)?\s*(\d+)\]+', text, re.IGNORECASE))
+        # [Fix] Update regex to match _validate_claims: Support complex citations and double brackets
+        matches = list(re.finditer(r'(?:\[+|\(+)(?:ID:?|Doc|Page\s*\d+\s*\(?ID:?)?\s*(\d+)(?:\]+|\)+)', text, re.IGNORECASE))
         
         chunk_appearance_order = []
         seen_chunks = set()
         
         # 1. Determine order of appearance
         for m in matches:
-            cid = int(m.group(2))
+            cid = int(m.group(1)) # Group 1 is now the ID
             if cid not in seen_chunks:
                 chunk_appearance_order.append(cid)
                 seen_chunks.add(cid)
@@ -211,12 +193,12 @@ class RAGService:
         
         # 4. Rewrite Text
         def replace_match(match):
-            cid = int(match.group(2))
+            cid = int(match.group(1)) # Group 1 is ID
             if cid in id_to_index:
                 return f"[{id_to_index[cid]}]"
             return match.group(0) # Leave unknown IDs alone
             
-        normalized_text = re.sub(r'\[+(:?ID:?|Doc)?\s*(\d+)\]+', replace_match, text, flags=re.IGNORECASE)
+        normalized_text = re.sub(r'(?:\[+|\(+)(?:ID:?|Doc|Page\s*\d+\s*\(?ID:?)?\s*(\d+)(?:\]+|\)+)', replace_match, text, flags=re.IGNORECASE)
         
         # 5. Reorder Citations List
         ordered_citations = []
@@ -237,11 +219,9 @@ class RAGService:
         citations = []
         try:
             # Robust Regex:
-            # 1. Matches [[123]] or [123]
-            # 2. Handles optional "ID:" or "Doc" prefixes
-            # 3. Captures the digits
-            matches = re.findall(r'\[+(:?ID:?|Doc)?\s*(\d+)\]+', text, re.IGNORECASE)
-            cited_ids = {int(m[1]) for m in matches}
+            # Matches [[123]], [123], (ID: 123), (Page 1 (ID: 123))
+            matches = re.findall(r'(?:\[+|\(+)(?:ID:?|Doc|Page\s*\d+\s*\(?ID:?)?\s*(\d+)(?:\]+|\)+)', text, re.IGNORECASE)
+            cited_ids = {int(m) for m in matches} # re.findall returns list of group 1 strings
             
             valid_chunk_map = {c.id: c for c in chunks}
             seen_pages = set()
@@ -305,154 +285,14 @@ class RAGService:
         # [Deep Audit Fix] Acronym Support: Allow 2-letter words (e.g. AI, QC) if not stopwords
         return {w.rstrip('s') for w in words if w not in stopwords and len(w) >= 2}
 
-    def _select_dominant_document(
-        self, 
-        chunks: List[DocumentChunk], 
-        scores: List[float]
-    ) -> Optional[int]:
-        """
-        [Layer: Dominant Document Selection]
-        Selects the single best document ID.
-        FAIL CLOSED: If there is ambiguity (two documents with similar high scores), return None.
-        """
-        if not chunks: return None
-        
-        from collections import defaultdict
-        
-        # 1. Aggregation
-        doc_scores = defaultdict(float)
-        doc_counts = defaultdict(int)
-        
-        for chunk, score in zip(chunks, scores):
-            # Only consider "Positive" signal chunks for authority
-            if score > 0.0:
-                 doc_scores[chunk.document_id] += score
-                 doc_counts[chunk.document_id] += 1
-        
-        if not doc_scores:
-             return None
-             
-        # 2. Sorting
-        sorted_docs = sorted(
-            doc_scores.keys(), 
-            key=lambda did: doc_scores[did], 
-            reverse=True
-        )
-        
-        best_doc_id = sorted_docs[0]
-        best_score = doc_scores[best_doc_id]
-        
-        logger.info(f"Dominant Selection: Best Doc {best_doc_id} (Score: {best_score:.2f})")
-        
-        # 3. Ambiguity Check (Zero-Trust)
-        # If we have a second document, check if it's "Close Enough" to cause bleed risk
-        if len(sorted_docs) > 1:
-            second_doc_id = sorted_docs[1]
-            second_score = doc_scores[second_doc_id]
-            
-            # Ratio Check: If 2nd place has > 75% of 1st place score -> AMBIGUOUS
-            ratio = second_score / best_score if best_score > 0 else 0
-            if ratio > 0.75:
-                 logger.warning(f"Ambiguity Detected! Doc {best_doc_id} ({best_score:.2f}) vs Doc {second_doc_id} ({second_score:.2f}). Ratio: {ratio:.2f}")
-                 # FAIL CLOSED
-                 return None
-                 
-        return best_doc_id
+    # [REMOVED DUPLICATE _select_dominant_document]
+    # The authoritative version is defined later in the class.
 
     # [REMOVED DUPLICATE _validate_claims]
     # The authoritative version is defined later in the class.
 
-    
-    async def _expand_query(self, query: str) -> str:
-        """
-        Expand queries into proper search questions to improve retrieval.
-        Leverages LLM internal knowledge to interpret user intent and synonyms.
-        """
-
-        # Heuristic: Run for most queries that aren't already long detailed explanations
-        # Optimization: Reduced threshold and regex fast-paths
-        
-        # 1. Fast Path: Skip if query looks like a specific code or is very specific
-        # Regex for common codes like "PRJ-99", "ISO 9001", "Section 5.2"
-        if re.search(r'\b[A-Z]{2,4}[-_]\d{2,5}\b', query) or re.search(r'\b(section|article)\s+\d+', query, re.IGNORECASE):
-             logger.info("Fast Path: Skipping expansion for specific code/section reference")
-             return query
-
-        # 2. Threshold Check
-        if len(query.split()) < self.settings.expansion_threshold:
-            logger.info(f"Expanding query: '{query}'")
-            prompt = (
-                f"You are a query optimizer. Reformulate the user's query into a precise, standalone search query.\n"
-                f"User Query: \"{query}\"\n\n"
-                f"Instructions:\n"
-                f"1. Remove conversational filler (e.g., 'tell me about', 'please find').\n"
-                f"2. Expand abbreviations and add relevant technical synonyms.\n"
-                f"3. Keep specific codes (e.g. 'ISO-9001', 'PRJ-99') EXACT.\n"
-                f"4. Output ONLY the improved query string. Be concise but comprehensive.\n\n"
-                f"Examples:\n"
-                f"- Input: \"why is the pump making noise\"\n"
-                f"- Output: \"centrifugal pump cavitation noise vibration mechanical failure causes troubleshooting\"\n"
-                f"- Input: \"who is Charlie\"\n"
-                f"- Output: \"Charlie employee profile role department responsibilities\"\n\n"
-                f"Optimized Query:"
-            )
-            llm_request = LLMRequest(
-                prompt=prompt,
-                max_tokens=60,
-                temperature=0.05,  # Lower temperature for precision
-                stop_sequences=["\n\n"],
-                system_prompt="You are a query expansion expert."
-            )
-            try:
-                # Use a separate non-streaming call for expansion
-                response = await asyncio.to_thread(self.llm.generate, llm_request)
-                expanded = response.text.strip().strip('"').strip("'")
-                
-                # Cleaning
-                for prefix in ["Here is", "Optimized Query:", "Output:", "**"]:
-                    if expanded.lower().startswith(prefix.lower()):
-                        expanded = expanded[len(prefix):].strip()
-                        
-                # Sanity Check
-                if len(expanded) < 3 or len(expanded) > len(query) * 4: # Guard against hallway-ucination
-                     logger.warning(f"Expansion seemed odd ('{expanded}'), blending with original")
-                     # If unsure, concat original to ensure keywords aren't lost
-                     expanded = f"{query} {expanded}"
-
-                logger.info(f"Expanded query: '{expanded}'")
-                return expanded
-            except Exception as e:
-                logger.warning(f"Query expansion failed: {e}")
-                return query
-        return query
-
-    async def _generate_hyde_answer(self, query: str) -> str:
-        """
-        [HyDE] Generate a Hypothetical Document (Answer) to improve retrieval.
-        The vector of this hypothetical answer is often closer to the target document
-        than the query vector itself.
-        """
-        prompt = (
-            f"Please write a short, plausible passage that answers the question. "
-            f"Do not include any explanations. Just write the answer text as if it appeared in a document.\n\n"
-            f"Question: \"{query}\"\n"
-            f"Passage:"
-        )
-        llm_request = LLMRequest(
-            prompt=prompt, 
-            max_tokens=150, 
-            temperature=0.15, # Low temperature for factual HyDE
-            stop_sequences=["\n"],
-            system_prompt="You are a helpful assistant generating hypothetical document excerpts."
-        )
-        try:
-            response = await asyncio.to_thread(self.llm.generate, llm_request)
-            hyde_text = response.text.strip()
-            logger.info(f"[HyDE] Generated hypothetical answer: {hyde_text[:50]}...")
-            return hyde_text
-        except Exception as e:
-            logger.warning(f"[HyDE] Failed: {e}")
-            return ""
+    # _expand_query REMOVED for Zero-Trust compliance
+    # _generate_hyde_answer REMOVED for Zero-Trust compliance
 
     async def _classify_intent(self, query: str) -> UserIntent:
         """Classify user intent using LLM or heuristics."""
@@ -610,7 +450,7 @@ class RAGService:
             return QueryAnalysisResult(
                 intent=intent_enum,
                 tone=metadata.get("tone", "General"),
-                keywords=metadata.get("keywords", []),
+                keywords=[], # [Zero-Trust] No LLM generated keywords allowed
                 is_ambiguous=metadata.get("is_ambiguous", False)
             )
             
@@ -708,29 +548,14 @@ class RAGService:
             if is_dup: continue
 
             # --- Extract Citations ---
-            cited_ids = [int(m[1]) for m in re.findall(r'\[+(:?ID:?|Doc)?\s*(\d+)\]+', sent, re.IGNORECASE)]
+            # [Update] Support both [ID: 123] and (ID: 123) formats
+            # Regex Improved to handle double brackets/parens
+            cited_ids = [int(m) for m in re.findall(r'(?:\[+|\(+)(?:ID:?|Doc|Page\s*\d+\s*\(?ID:?)?\s*(\d+)(?:\]+|\)+)', sent, re.IGNORECASE)]
             
-            # --- Auto-Citation If Missing ---
+            # --- Auto-Citation If Missing -> REMOVED FOR ZERO-TRUST ---
             if not cited_ids:
-                 best_chunk_id = None
-                 max_overlap_count = 0
-                 sent_terms = self._extract_key_terms(sent)
-                 
-                 for chunk in chunks:
-                     chunk_terms = self._extract_key_terms(chunk.content)
-                     overlap = sent_terms.intersection(chunk_terms)
-                     if len(overlap) > max_overlap_count:
-                         max_overlap_count = len(overlap)
-                         best_chunk_id = chunk.id
-
-                 # Threshold: 1 significant term is enough for auto-rescue
-                 if max_overlap_count >= 1 and best_chunk_id:
-                     logger.info(f"Auto-Citation: Injected ID {best_chunk_id} for '{sent[:30]}...'")
-                     sent = f"{sent} [[{best_chunk_id}]]"
-                     cited_ids = [best_chunk_id]
-                 else:
-                     logger.warning(f"Claim dropped (No citation & No semantic match): '{sent[:50]}...'")
-                     continue
+                logger.warning(f"Claim dropped (No citation found): '{sent[:50]}...'")
+                continue
 
             # --- Semantic Verification ---
             is_supported = False
@@ -880,17 +705,16 @@ class RAGService:
         user_id: int, 
         query: str, 
         top_k: int, 
-        original_query: Optional[str] = None,
-        bypass_relevance_check: bool = False,
-        keywords: Optional[List[str]] = None,
-        target_document_id: Optional[int] = None
+        target_document_id: Optional[int] = None,
+        filters: Optional[dict] = None  # [Enterprise Metadata]
     ) -> Dict[str, any]:
         """
         Helper method to retrieve and rerank context.
         Returns dictionary with keys: final_chunks, candidate_count, accessible_count
         """
         t0 = time.time()
-        boost_query = original_query if original_query else query
+        # [Zero-Trust] Use strict query only
+        boost_query = query
         
         # 1. Phase 1 & 2 Pre-calc: Get Accessible Chunk IDs (Policy Decision)
         # This enforces "Vector retrieval must be restricted to allowed_document_ids"
@@ -926,24 +750,15 @@ class RAGService:
             query_embedding = await asyncio.to_thread(self.embeddings.embed_text, query)
             
             # [Deep Audit Fix] DISABLE HyDE
-            # If query is short/ambiguous, use HyDE to halllucinate a target vector
-            # if len(query.split()) < 12 and not bypass_relevance_check: 
-            #      hyde_text = await self._generate_hyde_answer(query)
-            #      if hyde_text:
-            #          hyde_vec = await asyncio.to_thread(self.embeddings.embed_text, hyde_text)
-            #          # Standard HyDE Blend: 0.8 Query + 0.2 HyDE (Reduced HyDE to minimize hallucination risk)
-            #          # We use numpy to blend
-            #          q_vec = np.array(query_embedding)
-            #          h_vec = np.array(hyde_vec)
-            #          blended = 0.8 * q_vec + 0.2 * h_vec
-            #          query_embedding = blended.tolist() # Convert back if needed by store
-            #          logger.info("[HyDE] Applied vector blending")
+            # ... (HyDE commented out) ...
             
             # Zero-Trust Strategy Decision
             EXACT_SEARCH_THRESHOLD = 5000
             use_exact_search = accessible_chunk_ids is not None and len(accessible_chunk_ids) < EXACT_SEARCH_THRESHOLD
             
-            if use_exact_search:
+            # [Limitation] Exact Subset Search does not yet support metadata filtering in V1
+            # If metadata filters are present, we force Global Search which supports them.
+            if use_exact_search and not filters:
                 logger.info(f"Zero-Trust: Using Exact Subset Search for {len(accessible_chunk_ids)} accessible chunks")
                 
                 # 1. Exact Vector Search (Guaranteed Correctness)
@@ -957,8 +772,8 @@ class RAGService:
                 # 2. BM25 (Global but Filtered)
                 async def run_bm25_filtered():
                     # Lazy Load if needed via index_path
-                    # [NLP Optimization] Use extracted keywords for clearer Sparse Signal
-                    bm25_query = " ".join(keywords) if keywords and len(keywords) > 0 else query
+                    # [Zero-Trust] RAW QUERY ONLY for BM25
+                    bm25_query = query
                     
                     results = await self.bm25.search(bm25_query, top_k * 10, index_path=self.bm25_path)
                     if not results: return []
@@ -969,7 +784,7 @@ class RAGService:
                 splade_results = [] # SPLADE not used in Exact Subset Mode yet
                 
             else:
-                logger.info(f"Zero-Trust: Using Global Search + Filter for {len(accessible_chunk_ids) if accessible_chunk_ids else 'Unlimited'} chunks")
+                logger.info(f"Zero-Trust: Using Global Search + Filter for {len(accessible_chunk_ids) if accessible_chunk_ids else 'Unlimited'} chunks (Filters: {filters})")
                 
                 # DEBUG LOGGING
                 logger.info(f"DEBUG: accessible_chunk_ids type: {type(accessible_chunk_ids)}")
@@ -983,15 +798,16 @@ class RAGService:
                     res = await self.vector_store.search(
                         query_vector=query_embedding,
                         top_k=top_k * 10,  # 10x Oversampling for filtering
-                        filter_ids=accessible_chunk_ids
+                        filter_ids=accessible_chunk_ids,
+                        metadata_filter=filters # [Enterprise Metadata]
                     )
                     logger.info(f"DEBUG: Vector Search returned {len(res)} results")
                     return res
                     
                 async def run_bm25_search():
                     # Lazy Load if needed via index_path
-                    # [NLP Optimization] Use extracted keywords for clearer Sparse Signal
-                    bm25_query = " ".join(keywords) if keywords and len(keywords) > 0 else query
+                    # [Zero-Trust] RAW QUERY ONLY for BM25
+                    bm25_query = query
                     logger.debug(f"BM25 Query: '{bm25_query}'")
                     
                     results = await self.bm25.search(bm25_query, top_k * 10, index_path=self.bm25_path)
@@ -1184,9 +1000,10 @@ class RAGService:
                 current_doc_id = chunk.document_id
             
             # Line injection
-            page_info = f"(Page {chunk.page_number})" if chunk.page_number else ""
+            # [Fix] Simplify header to (ID: <id>) to prevent complex citation formats (User Request)
+            # page_info = f"(Page {chunk.page_number})" if chunk.page_number else ""
             # STRICT FORMAT: (ID: <id>) is required for Governance Layer
-            chunk_line = f"{page_info} (ID: {chunk.id}): {chunk.content}" 
+            chunk_line = f"(ID: {chunk.id}): {chunk.content}" 
             context_parts.append(chunk_line)
             
         return "\n".join(context_parts)
@@ -1196,7 +1013,9 @@ class RAGService:
         user_id: int,
         query: str,
         top_k: Optional[int] = None,
-        bypass_relevance_check: bool = False
+        bypass_relevance_check: bool = False,
+        file_filter_id: Optional[int] = None,  # [Feature] Direct File Target
+        filters: Optional[dict] = None         # [Enterprise Metadata]
     ) -> Dict[str, any]:
         """
         Process a RAG query (Async).
@@ -1235,8 +1054,7 @@ class RAGService:
 
             if self.settings.enable_query_expansion and \
                user_intent in [UserIntent.FACT_LOOKUP, UserIntent.DESCRIPTION, UserIntent.OPERATIONAL]:
-                  # ZERO-TRUST: DISABLE EXPANSION. No World Knowledge.
-                  # search_query = await self._expand_query(query)
+                  # ZERO-TRUST: DISABLE EXPANSION. Strictly enforced.
                   pass
 
             
@@ -1306,13 +1124,13 @@ class RAGService:
                 # Pass original query for boosting
                 
                 # Enterprise Upgrade: Fetch more candidates (20) for Reranking
+                # Enterprise Upgrade: Fetch more candidates (20) for Reranking
                 retrieval_result = await self._retrieve_context(
                     user_id, 
                     search_query, 
                     top_k=20, # Increased from 10 to 20 for Reranking
-                    original_query=query,
-                    bypass_relevance_check=bypass_relevance_check,
-                    keywords=query_analysis.keywords
+                    target_document_id=file_filter_id,
+                    filters=filters
                 )
             
             final_results = retrieval_result["final_results"]
@@ -1575,8 +1393,8 @@ class RAGService:
             logger.info(f"Total RAG query time: {time.time() - t0:.3f}s")
             
             # Define refusal indicators
-            # [Sanitization] Handle "Split Personality" refusal
-            final_answer_text = self._sanitize_response(final_answer_text)
+            # [Zero-Trust] Sanitization REMOVED
+            final_answer_text = final_answer_text 
             
             is_refusal = self._check_refusal(final_answer_text)
             
@@ -1584,6 +1402,7 @@ class RAGService:
             final_citations = citations if not is_refusal else []
             
             # Normalize Citations (Re-write text to use [1], [2] format)
+            # [Fix] Pass compatible regex or handle complex citations in normalization
             final_answer_text, final_citations = self._normalize_citations(final_answer_text, final_citations)
             
             # Convert Dict Citations to SourceChunk Models
@@ -1671,10 +1490,12 @@ class RAGService:
             # If Best is barely better than Second (e.g. < 10% diff), it's ambiguous.
             # However, logits are non-linear.
             # Simple rule: If Best Score is effectively tied, we risk hallucinating from wrong context.
-            # But "Fail Closed" is strict. Let's use a meaningful margin.
-            # If best_score < 1.0 (weak) AND diff < 0.2 -> Fail.
-            margin = best_score - second_score
-            if margin < 0.05: # Extremely close tie
+            # Strict Use Rule: If second document >= 75% of best -> FAIL CLOSED
+            # Formula: ratio = second / best. If ratio >= 0.75 -> Ambiguous.
+            ratio = second_score / best_score if best_score > 0 else 0
+            if ratio >= 0.75:
+                logger.warning(f"Ambiguity Detected: Doc {best_doc_id} vs {second_doc_id} Ratio {ratio:.2f} >= 0.75")
+                return None
                 logger.warning(f"Zero-Trust: Ambiguity Detected. Doc{best_doc_id} ({best_score:.2f}) vs Doc{second_doc_id} ({second_score:.2f}). REFUSING.")
                 return None
                 
@@ -1738,9 +1559,6 @@ class RAGService:
                     user_id=user_id,
                     query=query,
                     top_k=self.settings.retrieval_top_k, 
-                    original_query=query, # Assuming original_query is 'query' here, as it's not passed into stream_query
-                    bypass_relevance_check=(analysis_result.intent == UserIntent.OPERATIONAL),
-                    keywords=analysis_result.keywords,
                     target_document_id=target_doc_id
                 )
                 
@@ -1882,7 +1700,7 @@ class RAGService:
             # Only return citations if the model actually found an answer
             
             # [Sanitization] Handle "Split Personality" refusal
-            full_response = self._sanitize_response(full_response)
+            # full_response = self._sanitize_response(full_response) # [REMOVED]
             
             is_refusal = self._check_refusal(full_response)
             

@@ -27,7 +27,7 @@ class BaseVectorStore(ABC):
         pass
     
     @abstractmethod
-    async def search(self, query_vector: np.ndarray, top_k: int, filter_ids: Optional[List[int]] = None) -> List[Tuple[int, float]]:
+    async def search(self, query_vector: np.ndarray, top_k: int, filter_ids: Optional[List[int]] = None, metadata_filter: Optional[dict] = None) -> List[Tuple[int, float]]:
         """
         Search for similar vectors asynchronously.
         

@@ -1,59 +1,72 @@
-# IOC Secure Knowledge AI (ISK-AI)
+# ISK-AI (IOC Secure Knowledge AI)
 
-## Prerequisites
-- Python 3.10+
-- Oracle Instant Client (if using Oracle DB)
-- Tesseract OCR (for document ingestion)
+**Enterprise-Grade Zero-Trust RAG System**  
+*Securely chat with your internal documents using local AI.*
 
-## Setup
+---
 
-1.  **Create Virtual Environment**:
+## 🚀 Quick Start (Production)
+
+The easiest way to run the full system (Backend, Frontend, Database, AI) is via Docker.
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/your-org/IOCL-RAG.git
+cd IOCL-RAG
+
+# 2. Configure Environment
+cp .env.example .env
+# (Edit .env with your secrets if needed)
+
+# 3. Start the Application
+docker-compose up -d --build
+```
+
+*   **Frontend**: [http://localhost:3000](http://localhost:3000)
+*   **Backend API**: [http://localhost:8000/docs](http://localhost:8000/docs)
+*   **Milvus Console**: [http://localhost:9091](http://localhost:9091)
+
+---
+
+## 📚 Documentation
+
+We have detailed documentation available for every aspect of the project:
+
+| Document | Description | Target Audience |
+| :--- | :--- | :--- |
+| **[Documentation.md](./Documentation.md)** | **User Manual & Overview**. Features, How to Chat, How to Upload. | Users & Admins |
+| **[INSTRUCTION.md](./INSTRUCTION.md)** | **Deployment Guide**. Production setup, CORS, SSL, Local LLMs (Ollama). | DevOps & Leads |
+| **[SYSTEM_ARCHITECTURE.md](./SYSTEM_ARCHITECTURE.md)** | **Technical Deep Dive**. Diagrams, component breakdown, and data flow. | Developers |
+
+---
+
+## 💡 Key Features
+
+*   **Zero-Trust Security**: No data leaves the server. RBAC ensures authorized access only.
+*   **Accurate RAG**: Hybrid retrieval (Vector + Keyword) with Cross-Encoder reranking.
+*   **Multi-Format**: Supports PDF, Excel, Word, and PowerPoint.
+*   **Local Inference**: Powered by **Llama 3** and **Ollama** for total data sovereignty.
+*   **Smart Ingestion**: Automatic OCR and Vision AI fallback for scanned documents and charts.
+
+---
+
+## 🛠️ Development Setup (Local)
+
+If you want to contribute code without Docker:
+
+1.  **Backend**:
     ```bash
     python3 -m venv venv
     source venv/bin/activate
+    pip install -r requirements-dev.txt
+    uvicorn app.main:app --reload
     ```
 
-2.  **Install Dependencies**:
+2.  **Frontend**:
     ```bash
-    pip install -r requirements.txt
+    cd frontend
+    npm install
+    npm run dev
     ```
 
-3.  **Configure Environment**:
-    Copy `.env.example` to `.env`:
-    ```bash
-    cp .env.example .env
-    ```
-    
-    By default, the app is configured to use **SQLite** (`dev.db`) for easy local development.
-    To use **Oracle**, uncomment the Oracle configuration lines in `.env` and comment out `CUSTOM_DATABASE_URL`.
-
-4.  **Initialize Database**:
-    The application automatically creates tables on startup in development mode.
-
-## Running the Application
-
-Start the server using Uvicorn:
-
-```bash
-uvicorn app.main:app --reload
-```
-
-- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **API Root**: [http://localhost:8000/api/v1](http://localhost:8000/api/v1)
-
-## Running Tests
-
-To run tests, use `python -m pytest` from the project root:
-
-```bash
-python -m pytest tests/
-```
-
-**Note**: Do not run `pytest` directly or `python tests/test_api.py` as it may cause module import errors.
-
-## Features
-
-- **Document Ingestion**: Upload PDFs via `/api/v1/documents/upload`.
-- **RAG Chat**: Query documents via `/api/v1/chat/query`.
-- **Authentication**: Login via `/api/v1/auth/login`.
-# IOCL-RAG-System
+For troubleshooting and logic details, refer to [SYSTEM_ARCHITECTURE.md](./SYSTEM_ARCHITECTURE.md).
