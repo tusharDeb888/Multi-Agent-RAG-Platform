@@ -7,7 +7,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/RAG-Enterprise-blue?style=for-the-badge" />
   <img src="https://img.shields.io/badge/FastAPI-Backend-green?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/Oracle-Database-red?style=for-the-badge" />
+  <!-- <img src="https://img.shields.io/badge/Oracle-Database-red?style=for-the-badge" /> -->
   <img src="https://img.shields.io/badge/Milvus-VectorDB-purple?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Ollama-Local_LLM-orange?style=for-the-badge" />
   <img src="https://img.shields.io/badge/Redis-Cache-yellow?style=for-the-badge" />
